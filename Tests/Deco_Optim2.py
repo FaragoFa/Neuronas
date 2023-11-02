@@ -7,40 +7,34 @@
 #           http://www.jneurosci.org/content/34/23/7886.long
 #
 # By Gustavo Patow
+#
+# Optimized by Facundo Faragó
 # ================================================================================================================
+#
+# ============== import libraries
 import numpy as np
 import scipy.io as sio
-# import os, csv
-# from pathlib import Path
 import matplotlib.pyplot as plt
+import multiprocessing
+from tqdm import tqdm
 
 # ============== chose a model
 import WholeBrain.Models.DynamicMeanField as DMF
+
 # ============== chose and setup an integrator
 import WholeBrain.Integrators.EulerMaruyama as integrator
 integrator.neuronalModel = DMF
 integrator.verbose = False
-# ============== chose a FIC mechanism
-import WholeBrain.Utils.FIC.Balance_DecoEtAl2014 as Deco2014Mechanism
-#import WholeBrain.Utils.FIC.BalanceFIC as BalanceFIC
-#import WholeBrain.Utils.FIC.Balance_DecoEtAl2014 as Deco2014Mechanism
 
-#============== chose a FIC mechanism
+# ============== chose a FIC mechanism
 import WholeBrain.Utils.FIC.BalanceFIC as BalanceFIC
 BalanceFIC.integrator = integrator
-import WholeBrain.Utils.FIC.Balance_Herzog2022 as Herzog2022Mechanism
-BalanceFIC.balancingMechanism = Herzog2022Mechanism  # default behaviour for this project
-
+import WholeBrain.Utils.FIC.Balance_DecoEtAl2014 as Deco2014Mechanism
 BalanceFIC.balancingMechanism = Deco2014Mechanism  # default behaviour for this project
-BalanceFIC.integrator = integrator
 
-BalanceFIC.balancingMechanism = Deco2014Mechanism  # default behaviour for this project
 
 np.random.seed(42)  # Fix the seed for debug purposes...
 
-
-import multiprocessing
-from tqdm import tqdm
 
 def simulate_we(we, C, N, dt, Tmaxneuronal):
     DMF.setParms({'SC': C, 'we': we, 'J': np.ones(N)})  # Configurar parámetros
@@ -125,7 +119,6 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6 + 0.001, wStep=0.05,
     # Termino los procesos
     pool.close()
     pool.join()
-
 
 # ================================================================================================================
 # ================================================================================================================
