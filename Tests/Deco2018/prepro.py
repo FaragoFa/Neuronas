@@ -36,13 +36,13 @@ from setup import *
 # For the plotting, see the respective file (fig3A.py)
 def prepro_G_Optim():
     # %%%%%%%%%%%%%%% Set General Model Parameters
-    J_fileNames = outFilePath + "J_Balance_we{}.mat"
+    J_fileNames = outFilePath + "results_{}.txt"
 
     distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True)}
 
-    wStart = 0.
-    step = 0.1  # 0.025
-    wEnd = 2.5 + step
+    wStart = 0
+    step = 0.05  # 0.025
+    wEnd = 2 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Model Simulations

@@ -14,6 +14,7 @@
 
 import numpy as np
 from numba import jit
+import os
 
 
 # --------------------------------------------------------------------------
@@ -70,7 +71,7 @@ PLACEBO_cond = 4; LSD_cond = 1   # 1=LSD rest, 4=PLACEBO rest -> The original co
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = '../../Datos/Datasets'
-outFilePath = 'Datos/Results/Cerebrin'
+outFilePath = '../../Datos/Results/Results_25x25/'
 
 
 # ==================================================================================
@@ -91,11 +92,11 @@ def recompileSignatures():
 
 def LR_version_symm(TC):
     # returns a symmetrical LR version of AAL 90x90 matrix
-    odd = np.arange(0,90,2)
-    even = np.arange(1,90,2)[::-1]  # sort 'descend'
-    symLR = np.zeros((90,TC.shape[1]))
-    symLR[0:45,:] = TC[odd,:]
-    symLR[45:90,:] = TC[even,:]
+    odd = np.arange(0,25,2)
+    even = np.arange(1,25,2)[::-1]  # sort 'descend'
+    symLR = np.zeros((25,TC.shape[1]))
+    symLR[0:12,:] = TC[odd,:]
+    symLR[12:25,:] = TC[even,:]
     return symLR
 
 
@@ -130,21 +131,50 @@ C = matriz_conectividad_promedio*0.1
 
 DMF.setParms({'SC': C})  # Set the model with the SC
 
-#load fMRI data
-print(f"Loading {inFilePath}/fMRI/100206.mat")
+# #load fMRI data
+# print(f"Loading {inFilePath}/fMRI/100206.txt")
+#
+# # Cargar los datos timeseries de los sujetos desde el archivo de texto
+# datos_ts = np.loadtxt(inFilePath+'/fMRI/100206.txt')
+#
+# # Reshape para crear una matriz 2D (4800, 25)
+# matriz_ts = datos_ts.reshape((4800, 25))
+# matriz_tsT = matriz_ts.T
 
-# Cargar los datos timeseries de los sujetos desde el archivo de texto
-datos_ts = np.loadtxt(inFilePath+'/fMRI/netmats2_25.txt')
+# Directorio que contiene los archivos de texto
+directory = inFilePath+'/fMRI'
 
-# Reshape para crear una matriz 2D (4800, 25)
-matriz_ts = datos_ts.reshape((4800, 25))
-matriz_tsT = matriz_ts.T
+NumSubjects = 10  # Number of Subjects in empirical fMRI dataset, originally 20...
+N = 25 # Parcelations
+Tmax = 4800 # Total time
 
-tc_aal = matriz_tsT['tc_aal']
-(N, Tmax) = tc_aal[1,1].shape  # [N, Tmax]=size(tc_aal{1,1}) # N = number of areas; Tmax = total time
-print(f'tc_aal is {tc_aal.shape} and each entry has N={N} regions and Tmax={Tmax}')
+# Lista para almacenar las matrices ajustadas individualmente
+matrices_individuales = []
 
-NumSubjects = 15  # Number of Subjects in empirical fMRI dataset, originally 20...
+# Contador para rastrear el número de archivos cargados
+archivos_cargados = 0
+
+# Iterar sobre los archivos en el directorio
+for archivo in os.listdir(directory):
+    if archivo.endswith('.txt'):
+        # Cargar los datos del archivo
+        datos_ts = np.loadtxt(os.path.join(directory, archivo))
+        # Ajustar la forma a 4800x25
+        matriz_ajustada = datos_ts.reshape((Tmax, N))
+        matriz_ajustada = matriz_ajustada.T
+        # Añadir la matriz ajustada a la lista
+        matrices_individuales.append(matriz_ajustada)
+        archivos_cargados += 1
+
+    if archivos_cargados >= NumSubjects:
+        break
+
+# Convertir la lista de matrices en una matriz tridimensional
+matriz_tridimensional = np.dstack(matrices_individuales)
+
+print(f'matriz_tridimensional is (25, 4800) and each entry has N={N} regions and Tmax={Tmax}')
+
+
 print(f"Simulating {NumSubjects} subjects!")
 
 # ====================== By default, we set up the parameters for the DEFAULT mode:
@@ -153,13 +183,10 @@ print(f"Simulating {NumSubjects} subjects!")
 DMF.setParms({'S_E':0., 'S_I':0.})
 recompileSignatures()
 
-tc_transf_PLA = transformEmpiricalSubjects(tc_aal, PLACEBO_cond, NumSubjects)  # PLACEBO
+tc_transf= transformEmpiricalSubjects(matriz_tridimensional[:,:,1], 10, NumSubjects)  # PLACEBO
 # FCemp_cotsampling_PLA = G_optim.processEmpiricalSubjects(tc_transf_PLA, distanceSettings, "Data_Produced/SC90/fNeuro_emp_PLA.mat")
 # FCemp_PLA = FCemp_cotsampling_PLA['FC']; cotsampling_PLA = FCemp_cotsampling_PLA['swFCD'].flatten()
 
-tc_transf_LSD = transformEmpiricalSubjects(tc_aal, LSD_cond, NumSubjects)  # LSD
-# FCemp_cotsampling_LSD = G_optim.processEmpiricalSubjects(tc_transf_LSD, distanceSettings, "Data_Produced/SC90/fNeuro_emp_LCD.mat")  # LCD
-# FCemp_LSD = FCemp_cotsampling_LSD['FC']; cotsampling_LSD = FCemp_cotsampling_LSD['swFCD'].flatten()
 
 # ==========================================================================
 # ==========================================================================
