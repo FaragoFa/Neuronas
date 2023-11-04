@@ -160,7 +160,7 @@ DMF.setParms({'SC': C})  # Set the model with the SC
 # Directorio que contiene los archivos de texto
 directory = inFilePath+'/fMRI'
 
-NumSubjects = 2  # Number of Subjects in empirical fMRI dataset, originally 20...
+NumSubjects = 3  # Number of Subjects in empirical fMRI dataset, originally 20...
 N = 25 # Parcelations
 Tmax = 4800 # Total time
 

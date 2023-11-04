@@ -33,7 +33,7 @@ from setup import *
 # IMPORTANT: This function was created to reproduce Deco et al.'s 2018 code for Figure 3A.
 # Actually, this only performs the fitting which gives the value of we (we in the original
 # code, G in the paper) to use for further computations (e.g., plotting Figure 3A).
-# For the plotting, see the respective file (fig3A.py)
+# For the plotting, see the respective file (plot.py)
 def prepro_G_Optim():
     # %%%%%%%%%%%%%%% Set General Model Parameters
     J_fileNames = outFilePath + "results_{}.txt"
@@ -42,7 +42,7 @@ def prepro_G_Optim():
 
     wStart = 0
     step = 0.05  # 0.025
-    wEnd = 1 +0.001
+    wEnd = 4.9 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Model Simulations
