@@ -42,7 +42,7 @@ def prepro_G_Optim():
 
     wStart = 0
     step = 0.05  # 0.025
-    wEnd = 2 +0.001
+    wEnd = 1 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Model Simulations
@@ -55,7 +55,7 @@ def prepro_G_Optim():
     print("\n\n###################################################################")
     print("# Compute G_Optim")
     print("###################################################################\n")
-    fitting = optim1D.distanceForAll_Parms(tc_transf_PLA, WEs, modelParms, NumSimSubjects=NumSubjects,
+    fitting = optim1D.distanceForAll_Parms(tc_transf, WEs, modelParms, NumSimSubjects=NumSubjects,
                                            distanceSettings=distanceSettings,
                                            parmLabel='we',
                                            outFilePath=outFilePath, fileNameSuffix='')

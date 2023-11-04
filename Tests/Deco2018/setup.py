@@ -15,6 +15,7 @@
 import numpy as np
 from numba import jit
 import os
+import scipy.io as sio
 
 
 # --------------------------------------------------------------------------
@@ -90,23 +91,38 @@ def recompileSignatures():
     integrator.recompileSignatures()
 
 
+# def LR_version_symm(TC):
+#     # Devuelve una versión simétrica LR de la matriz AAL 25x4800x10
+#     odd = np.arange(0, 25, 2)
+#     even = np.arange(1, 25, 2)[::-1]  # ordenar en 'descendente'
+#     symLR = np.zeros((25, TC.shape[1], TC.shape[2]))
+#     symLR[0:13, :, :] = TC[odd, :, :]
+#     symLR[13:25, :, :] = TC[even, :, :]
+#     return symLR
+#
+#
+# def transformEmpiricalSubjects(tc_aal, NumSubjects):
+#     transformed = {}
+#     for s in range(NumSubjects):
+#         transformed[s] = LR_version_symm(tc_aal[:, :, s])
+#     return transformed
+
 def LR_version_symm(TC):
     # returns a symmetrical LR version of AAL 90x90 matrix
     odd = np.arange(0,25,2)
     even = np.arange(1,25,2)[::-1]  # sort 'descend'
     symLR = np.zeros((25,TC.shape[1]))
-    symLR[0:12,:] = TC[odd,:]
-    symLR[12:25,:] = TC[even,:]
+    symLR[0:13,:] = TC[odd,:]
+    symLR[13:25,:] = TC[even,:]
     return symLR
 
 
-def transformEmpiricalSubjects(tc_aal, cond, NumSubjects):
+def transformEmpiricalSubjects(tc_aal, NumSubjects):
     transformed = {}
     for s in range(NumSubjects):
         # transformed[s] = np.zeros(tc_aal[0,cond].shape)
-        transformed[s] = LR_version_symm(tc_aal[s,cond])
+        transformed[s] = LR_version_symm(tc_aal[:,:,s])
     return transformed
-
 
 # ==================================================================================
 # ==================================================================================
@@ -144,7 +160,7 @@ DMF.setParms({'SC': C})  # Set the model with the SC
 # Directorio que contiene los archivos de texto
 directory = inFilePath+'/fMRI'
 
-NumSubjects = 10  # Number of Subjects in empirical fMRI dataset, originally 20...
+NumSubjects = 2  # Number of Subjects in empirical fMRI dataset, originally 20...
 N = 25 # Parcelations
 Tmax = 4800 # Total time
 
@@ -183,7 +199,7 @@ print(f"Simulating {NumSubjects} subjects!")
 DMF.setParms({'S_E':0., 'S_I':0.})
 recompileSignatures()
 
-tc_transf= transformEmpiricalSubjects(matriz_tridimensional[:,:,1], 10, NumSubjects)  # PLACEBO
+tc_transf= transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)  # PLACEBO
 # FCemp_cotsampling_PLA = G_optim.processEmpiricalSubjects(tc_transf_PLA, distanceSettings, "Data_Produced/SC90/fNeuro_emp_PLA.mat")
 # FCemp_PLA = FCemp_cotsampling_PLA['FC']; cotsampling_PLA = FCemp_cotsampling_PLA['swFCD'].flatten()
 
