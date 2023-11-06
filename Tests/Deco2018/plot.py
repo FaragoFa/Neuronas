@@ -42,32 +42,32 @@ print('Loading {}'.format(filePath))
 fNeuro = sio.loadmat(filePath)
 WEs = fNeuro['we'].flatten()
 # fitting_LSD = fNeuro['fitting_LSD'].flatten()
-fitting_PLA = fNeuro['fitting_PLA'].flatten()
+FC_fitt = fNeuro['FC_fitt'].flatten()
 # FCDfitt_LSD = fNeuro['FCDfitt_LSD'].flatten()
-FCDfitt_PLA = fNeuro['FCDfitt_PLA'].flatten()
-phFCDfitt_PLA = fNeuro['phFCDfitt_PLA'].flatten()
+swFCD_fitt = fNeuro['swFCD_fitt'].flatten()
+phFCD_fitt = fNeuro['phFCD_fitt'].flatten()
 
 # mFCDfitt5   = np.mean(FCDfitt5,2);
 # stdFCDfitt5 = np.std(FCDfitt5,[],2);
 # mfitting5   = np.mean(fitting5,2);
 # stdfitting5 = np.std(fitting5,[],2);
 
-maxFC = WEs[np.argmax(fitting_PLA)]
-minFCD = WEs[np.argmin(FCDfitt_PLA)]
-minphFCD = WEs[np.argmin(phFCDfitt_PLA)]
+maxFC = WEs[np.argmax(FC_fitt)]
+minFCD = WEs[np.argmin(swFCD_fitt)]
+minphFCD = WEs[np.argmin(phFCD_fitt)]
 print("\n\n#####################################################")
-print(f"# Max FC({maxFC}) = {np.max(fitting_PLA)} \n "
-      f" Min FCD({minFCD}) = {np.min(FCDfitt_PLA)} \n "
-      f" Min phFCD({minphFCD}) = {np.min(phFCDfitt_PLA)}")
+print(f"# Max FC({maxFC}) = {np.max(FC_fitt)} \n "
+      f" Min FCD({minFCD}) = {np.min(swFCD_fitt)} \n "
+      f" Min phFCD({minphFCD}) = {np.min(phFCD_fitt)}")
 print("#####################################################\n\n")
 
 plt.rcParams.update({'font.size': 15})
-plotFCDpla, = plt.plot(WEs, FCDfitt_PLA)
-plotFCDpla.set_label("FCD placebo")
-plotphFCDpla, = plt.plot(WEs, phFCDfitt_PLA)
-plotphFCDpla.set_label("phFCD placebo")
-plotFCpla, = plt.plot(WEs, fitting_PLA)
-plotFCpla.set_label("FC placebo")
+plotswFCD, = plt.plot(WEs, swFCD_fitt)
+plotswFCD.set_label("swFCD")
+plotphFCD, = plt.plot(WEs, phFCD_fitt)
+plotphFCD.set_label("phFCD")
+plotFC, = plt.plot(WEs, FC_fitt)
+plotFC.set_label("FC")
 plt.title("Whole-brain fitting")
 plt.ylabel("Fitting")
 plt.xlabel("Global Coupling (G = we)")

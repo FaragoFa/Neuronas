@@ -66,9 +66,9 @@ def prepro_G_Optim():
     filePath = outFilePath + 'DecoEtAl2018_fneuro.mat'
     sio.savemat(filePath, #{'JI': JI})
                 {'we': WEs,
-                 'fitting_PLA': fitting['FC'],  # fitting_PLA,
-                 'FCDfitt_PLA': fitting['swFCD'],  # FCDfitt_PLA
-                 'phFCDfitt_PLA': fitting['phFCD'],  # phFCDfitt_PLA
+                 'FC_fitt': fitting['FC'],
+                 'swFCD_fitt': fitting['swFCD'],
+                 'phFCD_fitt': fitting['phFCD'],
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
     print(f"DONE!!! (file: {filePath})")
 
