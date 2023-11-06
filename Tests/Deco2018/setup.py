@@ -58,10 +58,8 @@ filters.TR = 0.72                           # TR
 # import observables
 import WholeBrain.Observables.FC as FC
 import WholeBrain.Observables.swFCD as swFCD
+import WholeBrain.Observables.phFCD as phFCD
 
-# --------------------------------------------------------------------------
-# setp up IDs...
-PLACEBO_cond = 4; LSD_cond = 1   # 1=LSD rest, 4=PLACEBO rest -> The original code used [2, 5] because arrays in Matlab start with 1...
 # --------------------------------------------------------------------------
 #  End modules setup...
 # --------------------------------------------------------------------------
@@ -89,23 +87,6 @@ def recompileSignatures():
     print("\n\nRecompiling signatures!!!")
     DMF.recompileSignatures()
     integrator.recompileSignatures()
-
-
-# def LR_version_symm(TC):
-#     # Devuelve una versión simétrica LR de la matriz AAL 25x4800x10
-#     odd = np.arange(0, 25, 2)
-#     even = np.arange(1, 25, 2)[::-1]  # ordenar en 'descendente'
-#     symLR = np.zeros((25, TC.shape[1], TC.shape[2]))
-#     symLR[0:13, :, :] = TC[odd, :, :]
-#     symLR[13:25, :, :] = TC[even, :, :]
-#     return symLR
-#
-#
-# def transformEmpiricalSubjects(tc_aal, NumSubjects):
-#     transformed = {}
-#     for s in range(NumSubjects):
-#         transformed[s] = LR_version_symm(tc_aal[:, :, s])
-#     return transformed
 
 def LR_version_symm(TC):
     # returns a symmetrical LR version of AAL 90x90 matrix
@@ -147,15 +128,8 @@ C = matriz_conectividad_promedio*0.1
 
 DMF.setParms({'SC': C})  # Set the model with the SC
 
-# #load fMRI data
-# print(f"Loading {inFilePath}/fMRI/100206.txt")
-#
-# # Cargar los datos timeseries de los sujetos desde el archivo de texto
-# datos_ts = np.loadtxt(inFilePath+'/fMRI/100206.txt')
-#
-# # Reshape para crear una matriz 2D (4800, 25)
-# matriz_ts = datos_ts.reshape((4800, 25))
-# matriz_tsT = matriz_ts.T
+# load fMRI data
+print(f"Loading {inFilePath}/fMRI/...")
 
 # Directorio que contiene los archivos de texto
 directory = inFilePath+'/fMRI'
@@ -200,9 +174,6 @@ DMF.setParms({'S_E':0., 'S_I':0.})
 recompileSignatures()
 
 tc_transf= transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)  # PLACEBO
-# FCemp_cotsampling_PLA = G_optim.processEmpiricalSubjects(tc_transf_PLA, distanceSettings, "Data_Produced/SC90/fNeuro_emp_PLA.mat")
-# FCemp_PLA = FCemp_cotsampling_PLA['FC']; cotsampling_PLA = FCemp_cotsampling_PLA['swFCD'].flatten()
-
 
 # ==========================================================================
 # ==========================================================================
