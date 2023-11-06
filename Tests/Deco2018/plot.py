@@ -45,6 +45,7 @@ WEs = fNeuro['we'].flatten()
 fitting_PLA = fNeuro['fitting_PLA'].flatten()
 # FCDfitt_LSD = fNeuro['FCDfitt_LSD'].flatten()
 FCDfitt_PLA = fNeuro['FCDfitt_PLA'].flatten()
+phFCDfitt_PLA = fNeuro['phFCDfitt_PLA'].flatten()
 
 # mFCDfitt5   = np.mean(FCDfitt5,2);
 # stdFCDfitt5 = np.std(FCDfitt5,[],2);
@@ -53,13 +54,18 @@ FCDfitt_PLA = fNeuro['FCDfitt_PLA'].flatten()
 
 maxFC = WEs[np.argmax(fitting_PLA)]
 minFCD = WEs[np.argmin(FCDfitt_PLA)]
-print("\n\n#####################################################################################################")
-print(f"# Max FC({maxFC}) = {np.max(fitting_PLA)}             ** Min FCD({minFCD}) = {np.min(FCDfitt_PLA)} **")
-print("#####################################################################################################\n\n")
+minphFCD = WEs[np.argmin(phFCDfitt_PLA)]
+print("\n\n#####################################################")
+print(f"# Max FC({maxFC}) = {np.max(fitting_PLA)} \n "
+      f" Min FCD({minFCD}) = {np.min(FCDfitt_PLA)} \n "
+      f" Min phFCD({minphFCD}) = {np.min(phFCDfitt_PLA)}")
+print("#####################################################\n\n")
 
 plt.rcParams.update({'font.size': 15})
 plotFCDpla, = plt.plot(WEs, FCDfitt_PLA)
 plotFCDpla.set_label("FCD placebo")
+plotphFCDpla, = plt.plot(WEs, phFCDfitt_PLA)
+plotphFCDpla.set_label("phFCD placebo")
 plotFCpla, = plt.plot(WEs, fitting_PLA)
 plotFCpla.set_label("FC placebo")
 plt.title("Whole-brain fitting")

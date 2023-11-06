@@ -70,7 +70,7 @@ import WholeBrain.Observables.phFCD as phFCD
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = '../../Datos/Datasets'
-outFilePath = '../../Datos/Results/Results_25x25/'
+outFilePath = '../../Datos/Results/Results_test/'
 
 
 # ==================================================================================
