@@ -38,11 +38,11 @@ def prepro_G_Optim():
     # %%%%%%%%%%%%%%% Set General Model Parameters
     J_fileNames = outFilePath + "results_{}.txt"
 
-    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True)}
+    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}
 
     wStart = 0
     step = 0.05  # 0.025
-    wEnd = 4.9 +0.001
+    wEnd = 4.8 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Model Simulations
@@ -66,8 +66,9 @@ def prepro_G_Optim():
     filePath = outFilePath + 'DecoEtAl2018_fneuro.mat'
     sio.savemat(filePath, #{'JI': JI})
                 {'we': WEs,
-                 'fitting_PLA': fitting['FC'],  # fitting_PLA,
-                 'FCDfitt_PLA': fitting['swFCD'],  # FCDfitt_PLA
+                 'FC_fitt': fitting['FC'],
+                 'swFCD_fitt': fitting['swFCD'],
+                 'phFCD_fitt': fitting['phFCD'],
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
     print(f"DONE!!! (file: {filePath})")
 
