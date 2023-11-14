@@ -24,14 +24,8 @@ import WholeBrain.Integrators.EulerMaruyama as integrator
 integrator.neuronalModel = Naskar
 integrator.verbose = False
 
-# ============== chose a FIC mechanism
-import WholeBrain.Utils.FIC.BalanceFIC as BalanceFIC
-BalanceFIC.integrator = integrator
-import WholeBrain.Utils.FIC.Balance_Herzog2022 as Herzog2022Mechanism
-BalanceFIC.balancingMechanism = Herzog2022Mechanism  # default behaviour for this project
-
-
 np.random.seed(42)  # Fix the seed for debug purposes...
+
 def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
                         extraTitle='', precompute=True, fileName=None):
     # Integration parms...
@@ -43,9 +37,8 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
     N = C.shape[0]
     Naskar.setParms({'SC': C})
     print("======================================")
-    print("=    simulating FIC                  =")
+    print("=    simulating Naskar               =")
     print("======================================")
-    # DMF.lambda = 0.  # make sure no long-range feedforward inhibition (FFI) is computed
     maxRateFIC = np.zeros(len(wes))
     for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
         print("\nProcessing: {}  ".format(we), end='')
@@ -55,11 +48,9 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v,0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
-    fic.set_label("FIC")
+    fic.set_label("Naskar")
 
-    for line, color in zip([1.47, 4.45], ['r','b']):
-        plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
-    plt.title("Large-scale network (DMF)" + extraTitle)
+    plt.title("Naskar model" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")
     plt.xlabel("Global Coupling (G = we)")
     plt.legend()

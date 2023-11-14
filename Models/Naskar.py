@@ -9,7 +9,6 @@
 # ==========================================================================
 import numpy as np
 from numba import jit
-import WholeBrain.Utils.FIC.Balance_Herzog2022 as Herzog
 
 print("Going to use the Dynamic Mean Field (DMF) neuronal model...")
 
@@ -28,8 +27,10 @@ def recompileSignatures():
 # --------------------------------------------------------------------------
 B_e = 0.0066 #ms^-1
 B_i = 0.18 #ms^-1
-t_glu = 100
-t_gaba = 10
+t_glu = 7.46
+t_gaba = 1.82
+We = 1.0
+Wi = 0.7
 alfa_e = 0.072
 alfa_i = 0.53
 J_NMDA = 0.15       # [nA] NMDA current
@@ -37,7 +38,7 @@ I0 = 0.382  #.397  # [nA] overall effective external input
 Jexte = 1.
 Jexti = 0.7
 w = 1.4
-we = 2.1        # Global coupling scaling (G in the paper)
+#we = 2.1        # Global coupling scaling (G in the paper)
 SC = None       # Structural connectivity (should be provided externally)
 p = 3
 
@@ -81,7 +82,7 @@ Hi = phii
 def initSim(N):
     sn = 0.001 * np.ones(N)  # Initialize sn (S^E in the paper)
     sg = 0.001 * np.ones(N)  # Initialize sg (S^I in the paper)
-    J = 1 * np.ones(N)
+    J = 2 * np.ones(N)
     return np.stack((sn,sg,J))
 
 
@@ -127,13 +128,13 @@ def getParm(parmList):
 def dfun(simVars, I_external):
     # global xn, rn
     sn = simVars[0]; sg = simVars[1]; J = simVars[2]
-    xn = I0 * Jexte + w * J_NMDA * sn + we * J_NMDA * (SC @ sn) - J * sg + I_external  # Eq for I^E (5). I_external = 0 => resting state condition.
-    xg = 0.7*I0 * Jexti + J_NMDA * sn - sg  # Eq for I^I (6). \lambda = 0 => no long-range feedforward inhibition (FFI)
+    xn = We*I0 + w * J_NMDA * sn + we * J_NMDA * (SC @ sn) - J * sg + I_external  # Eq for I^E (5). I_external = 0 => resting state condition.
+    xg = Wi*I0 + J_NMDA * sn - sg  # Eq for I^I (6). \lambda = 0 => no long-range feedforward inhibition (FFI)
     rn = He(xn)  # Calls He(xn). r^E = H^E(I^E) in the paper (7)
     rg = Hi(xg)  # Calls Hi(xg). r^I = H^I(I^I) in the paper (8)
-    dsn = -sn*B_e + (1. - sn) * t_glu*alfa_e * rn
-    dsg = -sg*B_i + rg * t_gaba*alfa_i
-    dJ = rg*(rn-p)
+    dsn = -sn*B_e + (1. - sn) * t_glu*(alfa_e) * rn
+    dsg = -sg*B_i + rg * t_gaba*(alfa_i)*(1 - sg)
+    dJ = (rg)*((rn-p))
     return np.stack((dsn, dsg, dJ)), np.stack((xn, rn, J))
 
 
