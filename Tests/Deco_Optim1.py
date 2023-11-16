@@ -29,8 +29,8 @@ integrator.verbose = False
 # ============== chose a FIC mechanism
 import WholeBrain.Utils.FIC.BalanceFIC as BalanceFIC
 BalanceFIC.integrator = integrator
-# import WholeBrain.Utils.FIC.Balance_DecoEtAl2014 as Deco2014Mechanism
-# BalanceFIC.balancingMechanism = Deco2014Mechanism  # default behaviour for this project
+import WholeBrain.Utils.FIC.Balance_DecoEtAl2014 as Deco2014Mechanism
+BalanceFIC.balancingMechanism = Deco2014Mechanism  # default behaviour for this project
 
 
 np.random.seed(42)  # Fix the seed for debug purposes...
@@ -101,35 +101,6 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6 + 0.001, wStep=0.05,
     plt.xlabel("Global Coupling (G = we)")
     plt.legend()
     plt.show()
-
-# ================================================================================================================
-# ================================================================================================================
-# ================================================================================================================
-if __name__ == '__main__':
-    plt.rcParams.update({'font.size': 15})
-
-    # Simple verification test, to check the info from the paper...
-    print(f"Simple test for verification: phie={DMF.phie(-0.026+DMF.be/DMF.ae)}")
-    print("Should print result: phie 3.06308542427")
-
-    # print("Running single node...")
-    # N = 1
-    # DMF.we = 0.
-    # C = np.zeros((N,N))  # redundant, I know...
-    # DMF.J = np.ones(N)
-    # runAndPlotSim(C, "Single node simulation")
-
-    # Load connectome:
-    # --------------------------------
-    inFilePath = '../../Data_Raw'
-    outFilePath = '../../Data_Produced'
-    CFile = sio.loadmat(inFilePath + '/Human_66.mat')  # load Human_66.mat C
-    C = CFile['C']
-    fileName = outFilePath + '/Human_66/Benji_Human66_{}.mat'  # integrationMode+'Benji_Human66_{}.mat'
-
-    # ================================================================
-    # This plots the graphs at Fig 2c of [D*2014]
-    plotMaxFrecForAllWe(C, fileName=fileName)
 
 # ================================================================================================================
 # ================================================================================================================
