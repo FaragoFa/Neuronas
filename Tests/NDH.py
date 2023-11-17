@@ -78,21 +78,17 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
     print("======================================")
     print("=    simulating E-E (no FIC)         =")
     print("======================================")
-    maxRateNoFIC = []  # Cambia a una lista vacía
-
-    with tqdm(total=len(wes)) as pbar:  # Crea una barra de progreso
-        pool = multiprocessing.Pool(processes=num_processes)
-        results = [pool.apply_async(simulate_we, args=(we, C, N, dt, Tmaxneuronal)) for we in wes]
-        for result in results:
-            maxRateNoFIC.append(result.get())
-            pbar.update(1)  # Actualiza la barra de progreso
-
+    maxRateNoFIC = np.zeros(len(wes))
+    DMF.setParms({'J': np.ones(N)})  # E-E = Excitatory-Excitatory, no FIC...
+    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
+        print("Processing: {}".format(we), end='')
+        DMF.setParms({'we': we})
+        integrator.recompileSignatures()
+        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
+        maxRateNoFIC[kk] = np.max(np.mean(v, 0))
+        print(" => {}".format(maxRateNoFIC[kk]))
     ee, = plt.plot(wes, maxRateNoFIC)
     ee.set_label("E-E")
-
-    # Termino los procesos
-    pool.close()
-    pool.join()
 
     print("======================================")
     print("=    simulating Herzog               =")
