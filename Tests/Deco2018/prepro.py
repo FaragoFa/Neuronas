@@ -21,7 +21,7 @@
 # --------------------------------------------------------------------------
 #  Begin setup...
 # --------------------------------------------------------------------------
-from setup import *
+from Tests.Deco2018.setup import *
 # --------------------------------------------------------------------------
 #  End setup...
 # --------------------------------------------------------------------------
@@ -34,12 +34,11 @@ from setup import *
 # Actually, this only performs the fitting which gives the value of we (we in the original
 # code, G in the paper) to use for further computations (e.g., plotting Figure 3A).
 # For the plotting, see the respective file (plot.py)
-def prepro_G_Optim():
+def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
+
+    tc_transf = init()
+    BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
-    J_fileNames = outFilePath + "results_{}.txt"
-
-    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}
-
     wStart = 0
     step = 0.05  # 0.025
     wEnd = 4.8 +0.001
@@ -47,7 +46,6 @@ def prepro_G_Optim():
 
     # Model Simulations
     # ------------------------------------------
-    BalanceFIC.verbose = True
     balancedParms = BalanceFIC.Balance_AllJ9(C, WEs, baseName=J_fileNames)
     modelParms = [balancedParms[i] for i in balancedParms]
 

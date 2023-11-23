@@ -31,48 +31,39 @@ import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-from setup import *
+from Tests.Deco2018.setup import *
 
-filePath = outFilePath + '/DecoEtAl2018_fneuro.mat'
-if not Path(filePath).is_file():
-    import prepro_fgain_Neuro as prepro
-    prepro.prepro_G_Optim()
+def plot_goptim(path_mat = None):
+    filePath = path_mat
 
-print('Loading {}'.format(filePath))
-fNeuro = sio.loadmat(filePath)
-WEs = fNeuro['we'].flatten()
-# fitting_LSD = fNeuro['fitting_LSD'].flatten()
-FC_fitt = fNeuro['FC_fitt'].flatten()
-# FCDfitt_LSD = fNeuro['FCDfitt_LSD'].flatten()
-swFCD_fitt = fNeuro['swFCD_fitt'].flatten()
-phFCD_fitt = fNeuro['phFCD_fitt'].flatten()
+    print('Loading {}'.format(filePath))
+    fNeuro = sio.loadmat(filePath)
+    WEs = fNeuro['we'].flatten()
+    FC_fitt = fNeuro['FC_fitt'].flatten()
+    swFCD_fitt = fNeuro['swFCD_fitt'].flatten()
+    phFCD_fitt = fNeuro['phFCD_fitt'].flatten()
 
-# mFCDfitt5   = np.mean(FCDfitt5,2);
-# stdFCDfitt5 = np.std(FCDfitt5,[],2);
-# mfitting5   = np.mean(fitting5,2);
-# stdfitting5 = np.std(fitting5,[],2);
+    maxFC = WEs[np.argmax(FC_fitt)]
+    minFCD = WEs[np.argmin(swFCD_fitt)]
+    minphFCD = WEs[np.argmin(phFCD_fitt)]
+    print("\n\n#####################################################")
+    print(f"# Max FC({maxFC}) = {np.max(FC_fitt)} \n "
+          f" Min FCD({minFCD}) = {np.min(swFCD_fitt)} \n "
+          f" Min phFCD({minphFCD}) = {np.min(phFCD_fitt)}")
+    print("#####################################################\n\n")
 
-maxFC = WEs[np.argmax(FC_fitt)]
-minFCD = WEs[np.argmin(swFCD_fitt)]
-minphFCD = WEs[np.argmin(phFCD_fitt)]
-print("\n\n#####################################################")
-print(f"# Max FC({maxFC}) = {np.max(FC_fitt)} \n "
-      f" Min FCD({minFCD}) = {np.min(swFCD_fitt)} \n "
-      f" Min phFCD({minphFCD}) = {np.min(phFCD_fitt)}")
-print("#####################################################\n\n")
-
-plt.rcParams.update({'font.size': 15})
-plotswFCD, = plt.plot(WEs, swFCD_fitt)
-plotswFCD.set_label("swFCD")
-plotphFCD, = plt.plot(WEs, phFCD_fitt)
-plotphFCD.set_label("phFCD")
-plotFC, = plt.plot(WEs, FC_fitt)
-plotFC.set_label("FC")
-plt.title("Whole-brain fitting")
-plt.ylabel("Fitting")
-plt.xlabel("Global Coupling (G = we)")
-plt.legend()
-plt.show()
+    plt.rcParams.update({'font.size': 15})
+    plotswFCD, = plt.plot(WEs, swFCD_fitt)
+    plotswFCD.set_label("swFCD")
+    plotphFCD, = plt.plot(WEs, phFCD_fitt)
+    plotphFCD.set_label("phFCD")
+    plotFC, = plt.plot(WEs, FC_fitt)
+    plotFC.set_label("FC")
+    plt.title("Whole-brain fitting")
+    plt.ylabel("Fitting")
+    plt.xlabel("Global Coupling (G = we)")
+    plt.legend()
+    plt.show()
 
 # ================================================================================================================
 # ================================================================================================================
