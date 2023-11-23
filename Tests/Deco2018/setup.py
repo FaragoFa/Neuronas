@@ -26,11 +26,8 @@ import scipy.io as sio
 # two gain functions phie and phii for the right ones...
 
 
-neuronalModel = None
-
 # ----------------------------------------------
 import WholeBrain.Integrators.EulerMaruyama as integrator
-integrator.neuronalModel = neuronalModel
 integrator.verbose = False
 import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
@@ -85,7 +82,7 @@ def initRandom():
     np.random.seed(3)  # originally set to 13
 
 
-def recompileSignatures():
+def recompileSignatures(neuronalModel):
     # Recompile all existing signatures. Since compiling isn’t cheap, handle with care...
     # However, this is "infinitely" cheaper than all the other computations we make around here ;-)
     print("\n\nRecompiling signatures!!!")
@@ -115,7 +112,7 @@ def transformEmpiricalSubjects(tc_aal, NumSubjects):
 # ==================================================================================
 # ==================================================================================
 
-def init():
+def init(neuronalModel):
     initRandom()
 
     # Load Structural Connectivity Matrix
@@ -178,10 +175,10 @@ def init():
     # Sets the wgaine and wgaini to 0, but using the standard protocol...
     # We initialize both to 0, so we have Placebo conditions.
     neuronalModel.setParms({'S_E':0., 'S_I':0.})
-    recompileSignatures()
+    recompileSignatures(neuronalModel)
     tc_transf = transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)  # PLACEBO
 
-    return tc_transf
+    return tc_transf, C, NumSubjects
 
 # ==========================================================================
 # ==========================================================================

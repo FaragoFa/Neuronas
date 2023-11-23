@@ -36,7 +36,8 @@ from Tests.Deco2018.setup import *
 # For the plotting, see the respective file (plot.py)
 def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
-    tc_transf = init()
+    integrator.neuronalModel = neuronalModel
+    tc_transf, C, NumSubjects = init(neuronalModel)
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
     wStart = 0
