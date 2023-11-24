@@ -42,13 +42,21 @@ def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanc
     # %%%%%%%%%%%%%%% Set General Model Parameters
     wStart = 0
     step = 0.05  # 0.025
-    wEnd = 4.8 +0.001
+    wEnd = 1 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Model Simulations
     # ------------------------------------------
-    balancedParms = BalanceFIC.Balance_AllJ9(C, WEs, baseName=J_fileNames)
-    modelParms = [balancedParms[i] for i in balancedParms]
+    if fic is not None:
+        balancedParms = BalanceFIC.Balance_AllJ9(C, WEs, baseName=J_fileNames)
+        modelParms = [balancedParms[i] for i in balancedParms]
+    else:
+        result = {}
+        # if not parallel:
+        for we in WEs:  # iterate over the weight range (G in the paper, we here)
+            result[we] = {'we': we}
+        modelParms = result
+
 
     # Now, optimize all we (G) values: determine optimal G to work with
     print("\n\n###################################################################")

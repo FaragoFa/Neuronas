@@ -71,7 +71,7 @@ import WholeBrain.Observables.phFCD as phFCD
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = 'Datos/Datasets'
-outFilePath = 'Datos/Results/Results_25x25/'
+outFilePath = 'Datos/Results/Results_Naskar/'
 
 
 # ==================================================================================
@@ -137,7 +137,7 @@ def init(neuronalModel):
     # Directorio que contiene los archivos de texto
     directory = inFilePath+'/fMRI'
 
-    NumSubjects = 15  # Number of Subjects in empirical fMRI dataset, originally 20...
+    NumSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
     N = 25 # Parcelations
     Tmax = 4800 # Total time
 
