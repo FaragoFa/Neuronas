@@ -37,6 +37,7 @@ J_NMDA = 0.15       # [nA] NMDA current
 I0 = 0.382  #.397  # [nA] overall effective external input
 Jexte = 1.
 Jexti = 0.7
+gamma = 1 #Learning rate
 w = 1.4
 #we = 2.1        # Global coupling scaling (G in the paper)
 SC = None       # Structural connectivity (should be provided externally)
@@ -134,7 +135,7 @@ def dfun(simVars, I_external):
     rg = Hi(xg)  # Calls Hi(xg). r^I = H^I(I^I) in the paper (8)
     dsn = -sn*B_e + (1. - sn) * t_glu*(alfa_e) * rn
     dsg = -sg*B_i + rg * t_gaba*(alfa_i)*(1 - sg)
-    dJ = (rg)*((rn-p))
+    dJ = gamma*(rg)*((rn-p))
     return np.stack((dsn, dsg, dJ)), np.stack((xn, rn, J))
 
 
