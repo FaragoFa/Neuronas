@@ -83,7 +83,7 @@ Hi = phii
 def initSim(N):
     sn = 0.001 * np.ones(N)  # Initialize sn (S^E in the paper)
     sg = 0.001 * np.ones(N)  # Initialize sg (S^I in the paper)
-    J = 2 * np.ones(N)
+    J = 1 * np.ones(N)
     return np.stack((sn,sg,J))
 
 
@@ -110,7 +110,6 @@ def setParms(modelParms):
         we = modelParms['we']
     if 'SC' in modelParms:
         SC = modelParms['SC']
-
 
 def getParm(parmList):
     if 'we' in parmList or 'G' in parmList:  # I've made this mistake too many times...

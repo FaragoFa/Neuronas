@@ -29,6 +29,8 @@ import scipy.io as sio
 # ----------------------------------------------
 import WholeBrain.Integrators.EulerMaruyama as integrator
 integrator.verbose = False
+integrator.clamping = True
+integrator.clamping_max = 2
 import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
@@ -61,6 +63,8 @@ import WholeBrain.Observables.FC as FC
 import WholeBrain.Observables.swFCD as swFCD
 import WholeBrain.Observables.phFCD as phFCD
 
+# Escalado de matriz C
+scale = 0.1
 # --------------------------------------------------------------------------
 #  End modules setup...
 # --------------------------------------------------------------------------
@@ -71,7 +75,7 @@ import WholeBrain.Observables.phFCD as phFCD
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = 'Datos/Datasets'
-outFilePath = 'Datos/Results/Results_Naskar/'
+outFilePath = 'Datos/Results/Results_Naskar'
 
 
 # ==================================================================================
@@ -127,7 +131,7 @@ def init(neuronalModel):
     # Calcular la matriz de conectividad promedio de todos los sujetos
     matriz_conectividad_promedio = np.mean(matrices_por_sujeto_25, axis=0)
     matriz_conectividad_promedio = matriz_conectividad_promedio/matriz_conectividad_promedio.max()
-    C = matriz_conectividad_promedio*0.1
+    C = matriz_conectividad_promedio*scale
 
     neuronalModel.setParms({'SC': C})  # Set the model with the SC
 
@@ -137,7 +141,7 @@ def init(neuronalModel):
     # Directorio que contiene los archivos de texto
     directory = inFilePath+'/fMRI'
 
-    NumSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
+    NumSubjects = 10  # Number of Subjects in empirical fMRI dataset, originally 20...
     N = 25 # Parcelations
     Tmax = 4800 # Total time
 
