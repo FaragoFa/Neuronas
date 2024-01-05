@@ -41,8 +41,8 @@ def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanc
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
     wStart = 0
-    step = 0.05  # 0.025
-    wEnd = 15 +0.001
+    step = 0.1  # 0.025
+    wEnd = 3 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Integration parms...

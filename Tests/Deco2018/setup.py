@@ -29,8 +29,8 @@ import scipy.io as sio
 # ----------------------------------------------
 import WholeBrain.Integrators.EulerMaruyama as integrator
 integrator.verbose = False
-integrator.clamping = True
-integrator.clamping_max = 2
+integrator.clamping = False
+#integrator.clamping_max = 2
 import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
@@ -141,7 +141,7 @@ def init(neuronalModel):
     # Directorio que contiene los archivos de texto
     directory = inFilePath+'/fMRI'
 
-    NumSubjects = 10  # Number of Subjects in empirical fMRI dataset, originally 20...
+    NumSubjects = 2  # Number of Subjects in empirical fMRI dataset, originally 20...
     N = 25 # Parcelations
     Tmax = 4800 # Total time
 

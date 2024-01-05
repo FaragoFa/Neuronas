@@ -49,7 +49,8 @@ def plot_goptim(path_mat = None):
     print("\n\n#####################################################")
     print(f"# Max FC({maxFC}) = {np.max(FC_fitt)} \n "
           f" Min FCD({minFCD}) = {np.min(swFCD_fitt)} \n "
-          f" Min phFCD({minphFCD}) = {np.min(phFCD_fitt)}")
+          f" Min phFCD({minphFCD}) = {np.min(phFCD_fitt)}"
+           )
     print("#####################################################\n\n")
 
     plt.rcParams.update({'font.size': 15})
