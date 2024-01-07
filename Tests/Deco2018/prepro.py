@@ -37,12 +37,14 @@ from Tests.Deco2018.setup import *
 def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
     integrator.neuronalModel = neuronalModel
+    scheme.neuronalModel = neuronalModel
+
     tc_transf, C, NumSubjects = init(neuronalModel)
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
     wStart = 0
     step = 0.1  # 0.025
-    wEnd = 3 +0.001
+    wEnd = 2 +0.001
     WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Integration parms...
@@ -77,7 +79,7 @@ def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanc
     print("# Compute G_Optim")
     print("###################################################################\n")
     fitting = optim1D.distanceForAll_Parms(tc_transf, WEs, modelParms,
-                                           distanceSettings=distanceSettings, NumSimSubjects=NumSubjects,
+                                           observablesToUse=distanceSettings, NumSimSubjects=NumSubjects,
                                            parmLabel='we',
                                            outFilePath=outFilePath, fileNameSuffix='')
 

@@ -16,7 +16,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ============== chose a model
-import Models.Naskar as Naskar
+import WholeBrain.Models.Naskar as Naskar
 
 # ============== chose and setup an integrator
 import WholeBrain.Integrators.EulerMaruyama as integrator

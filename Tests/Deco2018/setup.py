@@ -27,14 +27,18 @@ import scipy.io as sio
 
 
 # ----------------------------------------------
-import WholeBrain.Integrators.EulerMaruyama as integrator
+neuronalModel = None
+import WholeBrain.Integrators.EulerMaruyama as scheme
+scheme.sigma = 0.001
+import WholeBrain.Integrators.Integrator as integrator
+integrator.integrationScheme = scheme
 integrator.verbose = False
-integrator.clamping = False
+#integrator.clamping = False
 #integrator.clamping_max = 2
-import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
+import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2008 as Stephan2008
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
-simulateBOLD.BOLDModel = Stephan2007
+simulateBOLD.BOLDModel = Stephan2008
 
 # --------------------------------------------------------------------------
 # Import optimizer (ParmSweep)
@@ -134,6 +138,7 @@ def init(neuronalModel):
     C = matriz_conectividad_promedio*scale
 
     neuronalModel.setParms({'SC': C})  # Set the model with the SC
+    neuronalModel.couplingOp.setParms(C)
 
     # load fMRI data
     print(f"Loading {inFilePath}/fMRI/...")
@@ -180,7 +185,7 @@ def init(neuronalModel):
     # We initialize both to 0, so we have Placebo conditions.
     neuronalModel.setParms({'S_E':0., 'S_I':0.})
     recompileSignatures(neuronalModel)
-    tc_transf = transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)  # PLACEBO
+    tc_transf = transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)
 
     return tc_transf, C, NumSubjects
 
