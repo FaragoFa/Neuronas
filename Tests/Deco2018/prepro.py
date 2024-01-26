@@ -34,18 +34,33 @@ from Tests.Deco2018.setup import *
 # Actually, this only performs the fitting which gives the value of we (we in the original
 # code, G in the paper) to use for further computations (e.g., plotting Figure 3A).
 # For the plotting, see the respective file (plot.py)
-def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
+def prepro_G_Optim(fic = None, neuronalModel = None, G_optim = None, M_e_optim = None, M_i_optim = None, J_fileNames = None, distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
-    integrator.neuronalModel = neuronalModel
+
     scheme.neuronalModel = neuronalModel
+    integrator.neuronalModel = neuronalModel
+
 
     tc_transf, C, NumSubjects = init(neuronalModel)
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
+    if G_optim is not None:
+        neuronalModel.setParms({'G': G_optim})
+    if M_e_optim is not None:
+        neuronalModel.setParms({'M_e': M_e_optim})
+    if M_i_optim is not None:
+        neuronalModel.setParms({'M_i': M_i_optim})
+
     wStart = 0
-    step = 0.1  # 0.025
-    wEnd = 2 +0.001
-    WEs = np.arange(wStart, wEnd, step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
+    Step = 0.1  # 0.025
+    wEnd = 10 +0.001
+    WEs = np.arange(wStart, wEnd, Step)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
+
+
+    MStart = 0.5
+    MStep = 0.1
+    MEnd = 2 + 0.001
+    Ms = np.arange(MStart, MEnd, MStep)  # 100 values values for constant G. Originally was np.arange(0,2.5,0.025)
 
     # Integration parms...
     dt = 0.1
@@ -69,8 +84,10 @@ def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanc
 
 
         # if not parallel:
-        for we in WEs:  # iterate over the weight range (G in the paper, we here)
-            result[we] = {'we': we}
+        # for we in WEs:  # iterate over the weight range (G in the paper, we here)
+        #     result[we] = {'we': we}
+        for M_e in Ms:  # iterate over the weight range (G in the paper, we here)
+            result[M_e] = {'M_e': M_e}
         modelParms = [result[i] for i in result]
 
 
@@ -78,21 +95,47 @@ def prepro_G_Optim(fic = None, neuronalModel = None, J_fileNames = None, distanc
     print("\n\n###################################################################")
     print("# Compute G_Optim")
     print("###################################################################\n")
-    fitting = optim1D.distanceForAll_Parms(tc_transf, WEs, modelParms,
+    fitting = optim1D.distanceForAll_Parms(tc_transf, Ms, modelParms,
                                            observablesToUse=distanceSettings, NumSimSubjects=NumSubjects,
-                                           parmLabel='we',
+                                           parmLabel='M_e',
                                            outFilePath=outFilePath, fileNameSuffix='')
 
-    optimal = {sd: distanceSettings[sd][0].findMinMax(fitting[sd]) for sd in distanceSettings}
+    optimal = {ds: distanceSettings[ds][0].findMinMax(fitting[ds]) for ds in distanceSettings}
     print("Optimal:\n", optimal)
 
     filePath = outFilePath + 'DecoEtAl2018_fneuro.mat'
     sio.savemat(filePath, #{'JI': JI})
-                {'we': WEs,
+                {'M_e': Ms,
                  'FC_fitt': fitting['FC'],
                  'swFCD_fitt': fitting['swFCD'],
                  'phFCD_fitt': fitting['phFCD'],
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
+    print(f"DONE!!! (file: {filePath})")
+
+
+
+def save_J (G_optim = None, M_e_optim = None, M_i_optim = None):
+
+    import WholeBrain.Models.Naskar as Naskar
+    scheme.neuronalModel = Naskar
+    integrator.neuronalModel = Naskar
+    tc_transf, C, NumSubjects = init(Naskar)
+
+    if G_optim is not None:
+        Naskar.setParms({'G': G_optim})
+    if M_e_optim is not None:
+        Naskar.setParms({'M_e': M_e_optim})
+    if M_i_optim is not None:
+        Naskar.setParms({'M_i': M_i_optim})
+
+    dt = 0.1
+    tmax = 10000
+    Tmaxneuronal = int((tmax + dt))
+
+    print("Saving J...")
+    filePath = outFilePath + 'J_Optim.mat'
+    J = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60 * 1000)[tmax-1, 2, :]
+    sio.savemat(filePath, {'J': J})
     print(f"DONE!!! (file: {filePath})")
 
 if __name__ == '__main__':

@@ -79,7 +79,8 @@ scale = 0.1
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = 'Datos/Datasets'
-outFilePath = 'Datos/Results/Results_Naskar'
+outFilePath = 'Datos/Results/Results_test/'
+
 
 
 # ==================================================================================
@@ -146,7 +147,7 @@ def init(neuronalModel):
     # Directorio que contiene los archivos de texto
     directory = inFilePath+'/fMRI'
 
-    NumSubjects = 2  # Number of Subjects in empirical fMRI dataset, originally 20...
+    NumSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
     N = 25 # Parcelations
     Tmax = 4800 # Total time
 

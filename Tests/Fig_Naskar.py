@@ -19,9 +19,14 @@ import matplotlib.pyplot as plt
 import WholeBrain.Models.Naskar as Naskar
 
 # ============== chose and setup an integrator
-import WholeBrain.Integrators.EulerMaruyama as integrator
+import WholeBrain.Integrators.Euler as scheme
+scheme.sigma = 0.001
+scheme.neuronalModel = Naskar
+import WholeBrain.Integrators.Integrator as integrator
+integrator.integrationScheme = scheme
 integrator.neuronalModel = Naskar
 integrator.verbose = False
+
 
 np.random.seed(42)  # Fix the seed for debug purposes...
 
@@ -29,21 +34,22 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
                         extraTitle='', precompute=True, fileName=None):
     # Integration parms...
     dt = 0.1
-    tmax = 10000.
+    tmax = 9 * 60 * 1000.
     Tmaxneuronal = int((tmax+dt))
     # all tested global couplings (G in the paper):
-    wes = np.arange(wStart + wStep, wEnd, wStep)  # warning: the range of wes depends on the conectome.
+    wes = np.arange(wStart, wEnd, wStep)  # warning: the range of wes depends on the conectome.
     N = C.shape[0]
     Naskar.setParms({'SC': C})
+    Naskar.couplingOp.setParms(C)
     print("======================================")
     print("=    simulating Naskar               =")
     print("======================================")
     maxRateFIC = np.zeros(len(wes))
     for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
         print("\nProcessing: {}  ".format(we), end='')
-        Naskar.setParms({'we': we})
-        integrator.recompileSignatures()
-        v = integrator.simulate(dt, Tmaxneuronal)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
+        Naskar.setParms({'G': we})
+        #integrator.recompileSignatures()
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60*1000)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
         maxRateFIC[kk] = np.max(np.mean(v,0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
