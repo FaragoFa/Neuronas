@@ -27,6 +27,7 @@ import scipy.io as sio
 
 
 # ----------------------------------------------
+from Tests.Deco2018.setup2 import *
 neuronalModel = None
 import WholeBrain.Integrators.EulerMaruyama as scheme
 scheme.sigma = 0.001
@@ -78,10 +79,16 @@ scale = 0.1
 # --------------------------------------------------------------------------
 # File loading…
 # --------------------------------------------------------------------------
+# inFilePath = '/Datos/Datasets/StructuralConnectivity/'
+# outFilePath = '/Datos/Results/Results_80x80/'
+
+outFilePath = 'Datos/Results/Results_test2/'
 inFilePath = 'Datos/Datasets'
-outFilePath = 'Datos/Results/Results_test/'
 
+fMRI_path = inFilePath + 'hcp1003_{}_LR_dbs80.mat'
+SC_path = inFilePath + 'SC_dbs80HARDIFULL.mat'
 
+tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST1', 'SOCIAL', 'WM']
 
 # ==================================================================================
 #  some useful WholeBrain
@@ -147,7 +154,7 @@ def init(neuronalModel):
     # Directorio que contiene los archivos de texto
     directory = inFilePath+'/fMRI'
 
-    NumSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
+    numSampleSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
     N = 25 # Parcelations
     Tmax = 4800 # Total time
 
@@ -170,7 +177,7 @@ def init(neuronalModel):
             matrices_individuales.append(matriz_ajustada)
             archivos_cargados += 1
 
-        if archivos_cargados >= NumSubjects:
+        if archivos_cargados >= numSampleSubjects:
             break
 
     # Convertir la lista de matrices en una matriz tridimensional
@@ -179,16 +186,46 @@ def init(neuronalModel):
     print(f'matriz_tridimensional is (25, 1200) and each entry has N={N} regions and Tmax={Tmax}')
 
 
-    print(f"Simulating {NumSubjects} subjects!")
+    print(f"Simulating {numSampleSubjects} subjects!")
 
     # ====================== By default, we set up the parameters for the DEFAULT mode:
     # Sets the wgaine and wgaini to 0, but using the standard protocol...
     # We initialize both to 0, so we have Placebo conditions.
     neuronalModel.setParms({'S_E':0., 'S_I':0.})
     recompileSignatures(neuronalModel)
-    tc_transf = transformEmpiricalSubjects(matriz_tridimensional, NumSubjects)
+    tc_transf = transformEmpiricalSubjects(matriz_tridimensional, numSampleSubjects)
 
-    return tc_transf, C, NumSubjects
+
+    #NUEVO
+    # --------------------------------------------------------------------------
+    # Paths and subject selection
+    # --------------------------------------------------------------------------
+
+    # maxSubjects = 1003
+    # numSampleSubjects = 1  # 20 for exploring the data
+    # N = 80
+    #
+    # selectedSubjectsFile = outFilePath + f'selected_{numSampleSubjects}.txt'
+    # listSelectedIDs = selectSubjects(selectedSubjectsFile, maxSubjects, numSampleSubjects)
+    # timeseries = {}
+    #
+    # for task in tasks:
+    #     fMRI_task_path = fMRI_path.format('REST1')
+    #     timeseries[task] = loadSubjectsData(fMRI_task_path, listSelectedIDs)
+    #
+    # # ------------ Load Structural Connectivity Matrix
+    # print(f"Loading {SC_path}")
+    # sc80 = sio.loadmat(SC_path)['SC_dbs80FULL']
+    # C = sc80/np.max(sc80)*scale  # Normalization...
+    # #N = sc80.shape[0]
+    # # sc68[1:N+1:N*N] = 0
+    # neuronalModel.setParms({'SC': C})  # Set the model with the SC
+    # neuronalModel.couplingOp.setParms(C)
+    # recompileSignatures(neuronalModel)
+    # tc_transf = timeseries
+    # print('Done!!!')
+
+    return tc_transf, C, numSampleSubjects
 
 # ==========================================================================
 # ==========================================================================

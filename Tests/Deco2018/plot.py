@@ -33,19 +33,19 @@ from pathlib import Path
 
 from Tests.Deco2018.setup import *
 
-def plot_goptim(path_mat = None):
+def plot_goptim(path_mat = None, x= None):
     filePath = path_mat
 
     print('Loading {}'.format(filePath))
     fNeuro = sio.loadmat(filePath)
-    Ms = fNeuro['M_e'].flatten()
+    Xs = fNeuro[x].flatten()
     FC_fitt = fNeuro['FC_fitt'].flatten()
     swFCD_fitt = fNeuro['swFCD_fitt'].flatten()
     phFCD_fitt = fNeuro['phFCD_fitt'].flatten()
 
-    maxFC = Ms[np.argmax(FC_fitt)]
-    minFCD = Ms[np.argmin(swFCD_fitt)]
-    minphFCD = Ms[np.argmin(phFCD_fitt)]
+    maxFC = Xs[np.argmax(FC_fitt)]
+    minFCD = Xs[np.argmin(swFCD_fitt)]
+    minphFCD = Xs[np.argmin(phFCD_fitt)]
     print("\n\n#####################################################")
     print(f"# Max FC({maxFC}) = {np.max(FC_fitt)} \n "
           f" Min FCD({minFCD}) = {np.min(swFCD_fitt)} \n "
@@ -54,15 +54,15 @@ def plot_goptim(path_mat = None):
     print("#####################################################\n\n")
 
     plt.rcParams.update({'font.size': 15})
-    plotswFCD, = plt.plot(Ms, swFCD_fitt)
+    plotswFCD, = plt.plot(Xs, swFCD_fitt)
     plotswFCD.set_label("swFCD")
-    plotphFCD, = plt.plot(Ms, phFCD_fitt)
+    plotphFCD, = plt.plot(Xs, phFCD_fitt)
     plotphFCD.set_label("phFCD")
-    plotFC, = plt.plot(Ms, FC_fitt)
+    plotFC, = plt.plot(Xs, FC_fitt)
     plotFC.set_label("FC")
     plt.title("Whole-brain fitting")
     plt.ylabel("Fitting")
-    plt.xlabel("Global Coupling (Ms = M_e)")
+    plt.xlabel(f"Global Coupling (Xs = {x})")
     plt.legend()
     plt.show()
 
