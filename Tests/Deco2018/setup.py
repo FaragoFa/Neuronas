@@ -14,9 +14,11 @@
 
 import numpy as np
 from numba import jit
-import os
 import scipy.io as sio
-
+import os
+import csv
+import random
+import h5py
 
 # --------------------------------------------------------------------------
 #  Begin modules setup...
@@ -27,7 +29,6 @@ import scipy.io as sio
 
 
 # ----------------------------------------------
-from Tests.Deco2018.setup2 import *
 neuronalModel = None
 import WholeBrain.Integrators.EulerMaruyama as scheme
 scheme.sigma = 0.001
@@ -79,16 +80,99 @@ scale = 0.1
 # --------------------------------------------------------------------------
 # File loading…
 # --------------------------------------------------------------------------
-# inFilePath = '/Datos/Datasets/StructuralConnectivity/'
-# outFilePath = '/Datos/Results/Results_80x80/'
+inFilePath = 'Datos/Datasets/DataHCP80/'
+outFilePath = 'Datos/Results/Results_80x80/'
 
-outFilePath = 'Datos/Results/Results_test2/'
-inFilePath = 'Datos/Datasets'
+# outFilePath = 'Datos/Results/Results_test2/'
+# inFilePath = 'Datos/Datasets'
 
 fMRI_path = inFilePath + 'hcp1003_{}_LR_dbs80.mat'
 SC_path = inFilePath + 'SC_dbs80HARDIFULL.mat'
 
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST1', 'SOCIAL', 'WM']
+
+# --------------------------------------------------------------------------
+# functions to select which subjects to process
+# --------------------------------------------------------------------------
+# ---------------- load a previously saved list
+def loadSubjectList(path):
+    subjects = []
+    with open(path, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        for row in reader:
+            subjects.append(int(row[0]))
+    return subjects
+
+
+# ---------------- save a freshly created list
+def saveSelectedSubjcets(path, subj):
+    with open(path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ',
+                            quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for s in subj:
+            writer.writerow([s])
+
+
+# ---------------- fix subset of subjects to sample
+def selectSubjects(selectedSubjectsF, maxSubj, numSampleSubj, excluded, forceRecompute=False):
+    if not os.path.isfile(selectedSubjectsF) or forceRecompute:  # if we did not already select a list...
+        listIDs = random.sample(range(0, maxSubj), numSampleSubj)
+        while excluded & set(listIDs):
+            listIDs = random.sample(range(0, maxSubj), numSampleSubj)
+        saveSelectedSubjcets(selectedSubjectsF, listIDs)
+    else:  # if we did, load it!
+        listIDs = loadSubjectList(selectedSubjectsF)
+    # ---------------- OK, let's proceed
+    return listIDs
+
+
+# --------------------------------------------------------------------------
+# functions to load fMRI data for certain subjects
+# --------------------------------------------------------------------------
+def read_matlab_h5py(filename, excluded):
+    with h5py.File(filename, "r") as f:
+        # Print all root level object names (aka keys)
+        # these can be group or dataset names
+        # print("Keys: %s" % f.keys())
+        # get first object name/key; may or may NOT be a group
+        # a_group_key = list(f.keys())[0]
+        # get the object type for a_group_key: usually group or dataset
+        # print(type(f['subjects_idxs']))
+        # If a_group_key is a dataset name,
+        # this gets the dataset values and returns as a list
+        # data = list(f[a_group_key])
+        # preferred methods to get dataset values:
+        # ds_obj = f[a_group_key]  # returns as a h5py dataset object
+        # ds_arr = f[a_group_key][()]  # returns as a numpy array
+
+        all_fMRI = {}
+        subjects = list(f['subject'])
+        for pos, subj in enumerate(subjects):
+            print(f'reading subject {pos}')
+            group = f[subj[0]]
+            try:
+                dbs80ts = np.array(group['dbs80ts'])
+                all_fMRI[pos] = dbs80ts.T
+            except:
+                print(f'ignoring register {subj} at {pos}')
+                excluded.add(pos)
+
+    return all_fMRI, excluded
+
+
+def testSubjectData(fMRI_path, excluded):
+    print(f'testing {fMRI_path}')
+    fMRIs, excluded = read_matlab_h5py(fMRI_path, excluded)  # now, we re only interested in the excluded list
+    return excluded
+
+
+def loadSubjectsData(fMRI_path, listIDs):
+    print(f'Loading {fMRI_path}')
+    fMRIs, excluded = read_matlab_h5py(fMRI_path, set())   # ignore the excluded list
+    res = {}  # np.zeros((numSampleSubj, nNodes, Tmax))
+    for pos, s in enumerate(listIDs):
+        res[pos] = fMRIs[s]
+    return res
 
 # ==================================================================================
 #  some useful WholeBrain
@@ -128,72 +212,67 @@ def transformEmpiricalSubjects(tc_aal, NumSubjects):
 # ==================================================================================
 # ==================================================================================
 
-def init(neuronalModel):
+def init(neuronalModel, selectedTask, numSampleSubjects):
     initRandom()
 
-    # Load Structural Connectivity Matrix
-    print(f"Loading {inFilePath}/StructuralConnectivity/netmats2_25.txt")
-
-    # Cargar los datos de los sujetos desde los archivos de texto
-    datos_sujetos_25 = np.loadtxt(inFilePath+'/StructuralConnectivity/netmats2_25.txt')
-
-    # Reshape para crear matriz 3D
-    matrices_por_sujeto_25 = datos_sujetos_25.reshape((1003, 25, 25))
-
-    # Calcular la matriz de conectividad promedio de todos los sujetos
-    matriz_conectividad_promedio = np.mean(matrices_por_sujeto_25, axis=0)
-    matriz_conectividad_promedio = matriz_conectividad_promedio/matriz_conectividad_promedio.max()
-    C = matriz_conectividad_promedio*scale
-
-    neuronalModel.setParms({'SC': C})  # Set the model with the SC
-    neuronalModel.couplingOp.setParms(C)
-
-    # load fMRI data
-    print(f"Loading {inFilePath}/fMRI/...")
-
-    # Directorio que contiene los archivos de texto
-    directory = inFilePath+'/fMRI'
-
-    numSampleSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
-    N = 25 # Parcelations
-    Tmax = 4800 # Total time
-
-    # Lista para almacenar las matrices ajustadas individualmente
-    matrices_individuales = []
-
-    # Contador para rastrear el número de archivos cargados
-    archivos_cargados = 0
-
-    # Iterar sobre los archivos en el directorio
-    for archivo in os.listdir(directory):
-        if archivo.endswith('.txt'):
-            # Cargar los datos del archivo
-            datos_ts = np.loadtxt(os.path.join(directory, archivo))
-            # Ajustar la forma a 4800x25
-            matriz_ajustada = datos_ts.reshape((Tmax, N))
-            matriz_ajustada = matriz_ajustada[:1200, :]
-            matriz_ajustada = matriz_ajustada.T
-            # Añadir la matriz ajustada a la lista
-            matrices_individuales.append(matriz_ajustada)
-            archivos_cargados += 1
-
-        if archivos_cargados >= numSampleSubjects:
-            break
-
-    # Convertir la lista de matrices en una matriz tridimensional
-    matriz_tridimensional = np.dstack(matrices_individuales)
-
-    print(f'matriz_tridimensional is (25, 1200) and each entry has N={N} regions and Tmax={Tmax}')
-
-
-    print(f"Simulating {numSampleSubjects} subjects!")
-
-    # ====================== By default, we set up the parameters for the DEFAULT mode:
-    # Sets the wgaine and wgaini to 0, but using the standard protocol...
-    # We initialize both to 0, so we have Placebo conditions.
-    neuronalModel.setParms({'S_E':0., 'S_I':0.})
-    recompileSignatures(neuronalModel)
-    tc_transf = transformEmpiricalSubjects(matriz_tridimensional, numSampleSubjects)
+    # # Load Structural Connectivity Matrix
+    # print(f"Loading {inFilePath}/StructuralConnectivity/netmats2_25.txt")
+    #
+    # # Cargar los datos de los sujetos desde los archivos de texto
+    # datos_sujetos_25 = np.loadtxt(inFilePath+'/StructuralConnectivity/netmats2_25.txt')
+    #
+    # # Reshape para crear matriz 3D
+    # matrices_por_sujeto_25 = datos_sujetos_25.reshape((1003, 25, 25))
+    #
+    # # Calcular la matriz de conectividad promedio de todos los sujetos
+    # matriz_conectividad_promedio = np.mean(matrices_por_sujeto_25, axis=0)
+    # matriz_conectividad_promedio = matriz_conectividad_promedio/matriz_conectividad_promedio.max()
+    # C = matriz_conectividad_promedio*scale
+    #
+    # neuronalModel.setParms({'SC': C})  # Set the model with the SC
+    # neuronalModel.couplingOp.setParms(C)
+    #
+    # # load fMRI data
+    # print(f"Loading {inFilePath}/fMRI/...")
+    #
+    # # Directorio que contiene los archivos de texto
+    # directory = inFilePath+'/fMRI'
+    #
+    # numSampleSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
+    # N = 25 # Parcelations
+    # Tmax = 4800 # Total time
+    #
+    # # Lista para almacenar las matrices ajustadas individualmente
+    # matrices_individuales = []
+    #
+    # # Contador para rastrear el número de archivos cargados
+    # archivos_cargados = 0
+    #
+    # # Iterar sobre los archivos en el directorio
+    # for archivo in os.listdir(directory):
+    #     if archivo.endswith('.txt'):
+    #         # Cargar los datos del archivo
+    #         datos_ts = np.loadtxt(os.path.join(directory, archivo))
+    #         # Ajustar la forma a 4800x25
+    #         matriz_ajustada = datos_ts.reshape((Tmax, N))
+    #         matriz_ajustada = matriz_ajustada[:1200, :]
+    #         matriz_ajustada = matriz_ajustada.T
+    #         # Añadir la matriz ajustada a la lista
+    #         matrices_individuales.append(matriz_ajustada)
+    #         archivos_cargados += 1
+    #
+    #     if archivos_cargados >= numSampleSubjects:
+    #         break
+    #
+    # # Convertir la lista de matrices en una matriz tridimensional
+    # matriz_tridimensional = np.dstack(matrices_individuales)
+    #
+    # print(f'matriz_tridimensional is (25, 1200) and each entry has N={N} regions and Tmax={Tmax}')
+    #
+    #
+    # print(f"Simulating {numSampleSubjects} subjects!")
+    #
+    # tc_transf = transformEmpiricalSubjects(matriz_tridimensional, numSampleSubjects)
 
 
     #NUEVO
@@ -201,31 +280,44 @@ def init(neuronalModel):
     # Paths and subject selection
     # --------------------------------------------------------------------------
 
-    # maxSubjects = 1003
-    # numSampleSubjects = 1  # 20 for exploring the data
-    # N = 80
-    #
-    # selectedSubjectsFile = outFilePath + f'selected_{numSampleSubjects}.txt'
-    # listSelectedIDs = selectSubjects(selectedSubjectsFile, maxSubjects, numSampleSubjects)
-    # timeseries = {}
-    #
-    # for task in tasks:
-    #     fMRI_task_path = fMRI_path.format('REST1')
-    #     timeseries[task] = loadSubjectsData(fMRI_task_path, listSelectedIDs)
-    #
-    # # ------------ Load Structural Connectivity Matrix
-    # print(f"Loading {SC_path}")
-    # sc80 = sio.loadmat(SC_path)['SC_dbs80FULL']
-    # C = sc80/np.max(sc80)*scale  # Normalization...
-    # #N = sc80.shape[0]
-    # # sc68[1:N+1:N*N] = 0
-    # neuronalModel.setParms({'SC': C})  # Set the model with the SC
-    # neuronalModel.couplingOp.setParms(C)
-    # recompileSignatures(neuronalModel)
-    # tc_transf = timeseries
-    # print('Done!!!')
+    maxSubjects = 1003
+    N = 80  # we are using the dbs80 format!
+
+    selectedSubjectsFile = outFilePath + f'selected_{numSampleSubjects}.txt'
+    timeseries = {}
+    excluded = set()
+
+    if not os.path.isfile(selectedSubjectsFile):
+        for task in tasks:
+            print(f'----------- Checking: {task} --------------')
+            fMRI_task_path = fMRI_path.format(task)
+            excluded = testSubjectData(fMRI_task_path, excluded)
+
+    listSelectedIDs = selectSubjects(selectedSubjectsFile, maxSubjects, numSampleSubjects, excluded)
+
+    for task in tasks:
+        print(f'----------- Processing: {task} --------------')
+        fMRI_task_path = fMRI_path.format(task)
+        timeseries[task] = loadSubjectsData(fMRI_task_path, listSelectedIDs)
+
+    # all_fMRI = {s: d for s,d in enumerate(timeseries)}
+    # numSubj, nNodes, Tmax = timeseries.shape  # actually, 80, 1200
+
+
+    tc_transf = timeseries[selectedTask]
+
+    # ------------ Load Structural Connectivity Matrix
+    print(f"Loading {SC_path}")
+    sc80 = sio.loadmat(SC_path)['SC_dbs80FULL']
+    C = sc80 / np.max(sc80) * scale  # Normalization...
+    neuronalModel.setParms({'SC': C})  # Set the model with the SC
+    neuronalModel.couplingOp.setParms(C)
+    recompileSignatures(neuronalModel)
+
+    print('Done!!!')
 
     return tc_transf, C, numSampleSubjects
+
 
 # ==========================================================================
 # ==========================================================================

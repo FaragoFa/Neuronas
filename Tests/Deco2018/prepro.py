@@ -74,7 +74,7 @@ def fitt(x = None, fic = None,J_fileNames = None, Xs = None, distanceSettings= N
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
     print(f"DONE!!! (file: {filePath})")
 
-def prepro_G_Optim(fic = None, neuronalModel = None, G_optim = None, Start= 0.5, Step = 0.2, End = 1.5 + 0.001,
+def prepro_G_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSampleSubjects = 20, G_optim = None, Start= 0.1, Step = 0.2, End = 1.5 + 0.001,
                    M_e_optim = None, M_i_optim = None, J_fileNames = None,
                    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
@@ -83,7 +83,7 @@ def prepro_G_Optim(fic = None, neuronalModel = None, G_optim = None, Start= 0.5,
     integrator.neuronalModel = neuronalModel
     Xs = np.arange(Start, End, Step)
 
-    tc_transf, C, numSampleSubjects = init(neuronalModel)
+    tc_transf, C, numSampleSubjects = init(neuronalModel, selectedTask,numSampleSubjects)
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
     if G_optim is not None:
@@ -109,7 +109,7 @@ def save_J (G_optim = None, M_e_optim = None, M_i_optim = None):
     import WholeBrain.Models.Naskar as Naskar
     scheme.neuronalModel = Naskar
     integrator.neuronalModel = Naskar
-    tc_transf, C, NumSubjects = init(Naskar)
+    tc_transf, C, numSampleSubjects = init(Naskar)
 
     if G_optim is not None:
         Naskar.setParms({'G': G_optim})
