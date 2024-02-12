@@ -109,7 +109,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         DMF.setParms({'we': we})
         balancedJ = BalanceFIC.Balance_J9(we, C, fileName_H.format(np.round(we, decimals=2)))['J'].flatten()
         integrator.neuronalModel.setParms({'J': balancedJ})
-        integrator.recompileSignatures()
+        #integrator.recompileSignatures()
         v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
@@ -132,7 +132,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         DMF.setParms({'we': we})
         balancedJ = BalanceFIC.Balance_J9(we, C, fileName_D.format(np.round(we, decimals=2)))['J'].flatten()
         integrator.neuronalModel.setParms({'J': balancedJ})
-        integrator.recompileSignatures()
+        #integrator.recompileSignatures()
         v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
