@@ -22,7 +22,10 @@ from tqdm import tqdm
 import WholeBrain.Models.DynamicMeanField as DMF
 
 # ============== chose and setup an integrator
-import WholeBrain.Integrators.EulerMaruyama as integrator
+import WholeBrain.Integrators.EulerMaruyama as scheme
+scheme.neuronalModel = DMF
+import WholeBrain.Integrators.Integrator as integrator
+integrator.integrationScheme = scheme
 integrator.neuronalModel = DMF
 integrator.verbose = False
 
@@ -33,68 +36,58 @@ import WholeBrain.Utils.FIC.Balance_Herzog2022 as Herzog2022Mechanism
 BalanceFIC.balancingMechanism = Herzog2022Mechanism  # default behaviour for this project
 
 
-np.random.seed(42)  # Fix the seed for debug purposes...
-
-
-def simulate_we(we, C, N, dt, Tmaxneuronal):
-    DMF.setParms({'SC': C, 'we': we, 'J': np.ones(N)})  # Configurar parámetros
-    integrator.recompileSignatures()
-    v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]
-    return np.max(np.mean(v, 0))
-
 def plotMaxFrecForAllWe(C, wStart=0, wEnd=6 + 0.001, wStep=0.05,
-                        extraTitle='', precompute=True, fileName=None, num_processes=1):
+                        extraTitle='', precompute=True, fileName=None):
+
     # Integration parms...
     dt = 0.1
     tmax = 10000.
     Tmaxneuronal = int((tmax + dt))
     # all tested global couplings (G in the paper):
-    wes = np.arange(wStart + wStep, wEnd, wStep)  # warning: the range of wes depends on the connectome.
+    wes = np.arange(wStart, wEnd, wStep)  # warning: the range of wes depends on the conectome.
+    # wes = np.arange(2.0, 2.11, 0.1)  # only for debug purposes...
+    # numW = wes.size  # length(wes);
     N = C.shape[0]
 
     DMF.setParms({'SC': C})
+    DMF.couplingOp.setParms(C)
 
     print("======================================")
     print("=    simulating E-E (no FIC)         =")
     print("======================================")
-    maxRateNoFIC = []  # Cambia a una lista vacía
-
-    with tqdm(total=len(wes)) as pbar:  # Crea una barra de progreso
-        pool = multiprocessing.Pool(processes=num_processes)
-        results = [pool.apply_async(simulate_we, args=(we, C, N, dt, Tmaxneuronal)) for we in wes]
-
-        for result in results:
-            maxRateNoFIC.append(result.get())
-            pbar.update(1)  # Actualiza la barra de progreso
-
+    maxRateNoFIC = np.zeros(len(wes))
+    DMF.setParms({'J': np.ones(N)})  # E-E = Excitatory-Excitatory, no FIC...
+    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
+        print("Processing: {}".format(we), end='')
+        DMF.setParms({'we': we})
+        # integrator.recompileSignatures()
+        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
+        maxRateNoFIC[kk] = np.max(np.mean(v, 0))
+        print(" => {}".format(maxRateNoFIC[kk]))
     ee, = plt.plot(wes, maxRateNoFIC)
     ee.set_label("E-E")
-
-    # Termino los procesos
-    pool.close()
-    pool.join()
 
     print("======================================")
     print("=    simulating FIC                  =")
     print("======================================")
-
-    # Resto del código para la simulación FIC
+    # DMF.lambda = 0.  # make sure no long-range feedforward inhibition (FFI) is computed
     maxRateFIC = np.zeros(len(wes))
     if precompute:
-        BalanceFIC.Balance_AllJ9(C, wes, baseName=fileName)
-    for kk, we in enumerate(wes):
+        BalanceFIC.Balance_AllJ9(C, wes,
+                                 baseName=fileName)
+    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
         print("\nProcessing: {}  ".format(we), end='')
         DMF.setParms({'we': we})
         balancedJ = BalanceFIC.Balance_J9(we, C, fileName.format(np.round(we, decimals=2)))['J'].flatten()
         integrator.neuronalModel.setParms({'J': balancedJ})
-        integrator.recompileSignatures()
-        v = integrator.simulate(dt, Tmaxneuronal)[:,1,:]
-        maxRateFIC[kk] = np.max(np.mean(v,0))
+        # integrator.recompileSignatures()
+        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
+        maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
     fic.set_label("FIC")
 
-    for line, color in zip([1.47, 4.45], ['r','b']):
+    for line, color in zip([1.47, 4.45], ['r', 'b']):
         plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
     plt.title("Large-scale network (DMF)" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")

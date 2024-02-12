@@ -70,7 +70,7 @@ import WholeBrain.Observables.swFCD as swFCD
 import WholeBrain.Observables.phFCD as phFCD
 
 # Escalado de matriz C
-scale = 0.1
+scale = 1
 # --------------------------------------------------------------------------
 #  End modules setup...
 # --------------------------------------------------------------------------
@@ -212,74 +212,9 @@ def transformEmpiricalSubjects(tc_aal, NumSubjects):
 # ==================================================================================
 # ==================================================================================
 
-def init(neuronalModel, selectedTask, numSampleSubjects):
+def init(selectedTask = 'REST1', numSampleSubjects = 10):
+
     initRandom()
-
-    # # Load Structural Connectivity Matrix
-    # print(f"Loading {inFilePath}/StructuralConnectivity/netmats2_25.txt")
-    #
-    # # Cargar los datos de los sujetos desde los archivos de texto
-    # datos_sujetos_25 = np.loadtxt(inFilePath+'/StructuralConnectivity/netmats2_25.txt')
-    #
-    # # Reshape para crear matriz 3D
-    # matrices_por_sujeto_25 = datos_sujetos_25.reshape((1003, 25, 25))
-    #
-    # # Calcular la matriz de conectividad promedio de todos los sujetos
-    # matriz_conectividad_promedio = np.mean(matrices_por_sujeto_25, axis=0)
-    # matriz_conectividad_promedio = matriz_conectividad_promedio/matriz_conectividad_promedio.max()
-    # C = matriz_conectividad_promedio*scale
-    #
-    # neuronalModel.setParms({'SC': C})  # Set the model with the SC
-    # neuronalModel.couplingOp.setParms(C)
-    #
-    # # load fMRI data
-    # print(f"Loading {inFilePath}/fMRI/...")
-    #
-    # # Directorio que contiene los archivos de texto
-    # directory = inFilePath+'/fMRI'
-    #
-    # numSampleSubjects = 1  # Number of Subjects in empirical fMRI dataset, originally 20...
-    # N = 25 # Parcelations
-    # Tmax = 4800 # Total time
-    #
-    # # Lista para almacenar las matrices ajustadas individualmente
-    # matrices_individuales = []
-    #
-    # # Contador para rastrear el número de archivos cargados
-    # archivos_cargados = 0
-    #
-    # # Iterar sobre los archivos en el directorio
-    # for archivo in os.listdir(directory):
-    #     if archivo.endswith('.txt'):
-    #         # Cargar los datos del archivo
-    #         datos_ts = np.loadtxt(os.path.join(directory, archivo))
-    #         # Ajustar la forma a 4800x25
-    #         matriz_ajustada = datos_ts.reshape((Tmax, N))
-    #         matriz_ajustada = matriz_ajustada[:1200, :]
-    #         matriz_ajustada = matriz_ajustada.T
-    #         # Añadir la matriz ajustada a la lista
-    #         matrices_individuales.append(matriz_ajustada)
-    #         archivos_cargados += 1
-    #
-    #     if archivos_cargados >= numSampleSubjects:
-    #         break
-    #
-    # # Convertir la lista de matrices en una matriz tridimensional
-    # matriz_tridimensional = np.dstack(matrices_individuales)
-    #
-    # print(f'matriz_tridimensional is (25, 1200) and each entry has N={N} regions and Tmax={Tmax}')
-    #
-    #
-    # print(f"Simulating {numSampleSubjects} subjects!")
-    #
-    # tc_transf = transformEmpiricalSubjects(matriz_tridimensional, numSampleSubjects)
-
-
-    #NUEVO
-    # --------------------------------------------------------------------------
-    # Paths and subject selection
-    # --------------------------------------------------------------------------
-
     maxSubjects = 1003
     N = 80  # we are using the dbs80 format!
 
@@ -310,9 +245,6 @@ def init(neuronalModel, selectedTask, numSampleSubjects):
     print(f"Loading {SC_path}")
     sc80 = sio.loadmat(SC_path)['SC_dbs80FULL']
     C = sc80 / np.max(sc80) * scale  # Normalization...
-    neuronalModel.setParms({'SC': C})  # Set the model with the SC
-    neuronalModel.couplingOp.setParms(C)
-    recompileSignatures(neuronalModel)
 
     print('Done!!!')
 

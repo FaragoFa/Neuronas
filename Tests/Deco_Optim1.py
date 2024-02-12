@@ -22,7 +22,11 @@ from tqdm import tqdm
 import WholeBrain.Models.DynamicMeanField as DMF
 
 # ============== chose and setup an integrator
-import WholeBrain.Integrators.EulerMaruyama as integrator
+import WholeBrain.Integrators.EulerMaruyama as scheme
+scheme.sigma = 0.001
+import WholeBrain.Integrators.Integrator as integrator
+integrator.integrationScheme = scheme
+scheme.neuronalModel = DMF
 integrator.neuronalModel = DMF
 integrator.verbose = False
 
@@ -53,6 +57,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6 + 0.001, wStep=0.05,
     N = C.shape[0]
 
     DMF.setParms({'SC': C})
+    DMF.couplingOp.setParms(C)
 
     print("======================================")
     print("=    simulating E-E (no FIC)         =")

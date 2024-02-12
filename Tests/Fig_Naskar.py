@@ -50,8 +50,8 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         Naskar.setParms({'G': we})
         #integrator.recompileSignatures()
         v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60*1000)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
-        #maxRateFIC[kk] = np.max(np.mean(v, axis=0))  # the original code from [DecoEtAl_2014]
-        maxRateFIC[kk] = np.mean(np.max(v, axis=0))  # this is what is implemented in the code [NaskarEtAl_2018].
+        maxRateFIC[kk] = np.max(np.mean(v, axis=0))  # the original code from [DecoEtAl_2014]
+        #maxRateFIC[kk] = np.mean(np.max(v, axis=0))  # this is what is implemented in the code [NaskarEtAl_2018].
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
     fic.set_label("Naskar")

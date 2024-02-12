@@ -33,7 +33,7 @@ from pathlib import Path
 
 from Tests.Deco2018.setup import *
 
-def plot_goptim(path_mat = None, x= None):
+def plot_optim(path_mat = None, x= None):
     filePath = path_mat
 
     print('Loading {}'.format(filePath))
