@@ -35,8 +35,6 @@ scheme.sigma = 0.001
 import WholeBrain.Integrators.Integrator as integrator
 integrator.integrationScheme = scheme
 integrator.verbose = False
-#integrator.clamping = False
-#integrator.clamping_max = 2
 import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2008 as Stephan2008
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
@@ -70,7 +68,7 @@ import WholeBrain.Observables.swFCD as swFCD
 import WholeBrain.Observables.phFCD as phFCD
 
 # Escalado de matriz C
-scale = 1
+scale = 0.1
 # --------------------------------------------------------------------------
 #  End modules setup...
 # --------------------------------------------------------------------------

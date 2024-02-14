@@ -71,9 +71,6 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
 
     ########### Herzog
     # Integration parms...
-    dt = 0.1
-    tmax = 10000.
-    Tmaxneuronal = int((tmax + dt))
     integrator.neuronalModel = DMF
     scheme.neuronalModel = DMF
     DMF.setParms({'SC': C})
@@ -90,7 +87,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         print("Processing: {}".format(we), end='')
         DMF.setParms({'we': we})
         integrator.recompileSignatures()
-        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60*1000)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
         maxRateNoFIC[kk] = np.max(np.mean(v, 0))
         print(" => {}".format(maxRateNoFIC[kk]))
     ee, = plt.plot(wes, maxRateNoFIC)
@@ -110,7 +107,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         balancedJ = BalanceFIC.Balance_J9(we, C, fileName_H.format(np.round(we, decimals=2)))['J'].flatten()
         integrator.neuronalModel.setParms({'J': balancedJ})
         #integrator.recompileSignatures()
-        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60*1000)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_h, = plt.plot(wes, maxRateFIC)
@@ -133,7 +130,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         balancedJ = BalanceFIC.Balance_J9(we, C, fileName_D.format(np.round(we, decimals=2)))['J'].flatten()
         integrator.neuronalModel.setParms({'J': balancedJ})
         #integrator.recompileSignatures()
-        v = integrator.simulate(dt, Tmaxneuronal)[:, 1, :]
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60*1000)[:,1,:]  # [1] is the output from the excitatory pool, in Hz.
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_d, = plt.plot(wes, maxRateFIC)
