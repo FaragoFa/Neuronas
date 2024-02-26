@@ -58,7 +58,7 @@ def fitt(x = None, fic = None,J_fileNames = None, Xs = None, distanceSettings= N
     print(f"# Compute {x}_Optim")
     print("###################################################################\n")
     fitting = optim1D.distanceForAll_Parms(tc_transf, Xs, modelParms,
-                                           observablesToUse=distanceSettings, NumSimSubjects=numSampleSubjects,
+                                           observablesToUse=distanceSettings, NumSimSubjects=numSampleSubjects*2,
                                            parmLabel=x,
                                            outFilePath=outFilePath, fileNameSuffix='')
 
@@ -74,7 +74,7 @@ def fitt(x = None, fic = None,J_fileNames = None, Xs = None, distanceSettings= N
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
     print(f"DONE!!! (file: {filePath})")
 
-def prepro_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.1, Step = 0.2, End = 1.5 + 0.001,
+def prepro_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
                    M_e_optim = None, M_i_optim = None, J_fileNames = None,
                    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 

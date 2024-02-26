@@ -79,7 +79,7 @@ scale = 0.1
 # File loading…
 # --------------------------------------------------------------------------
 inFilePath = 'Datos/Datasets/DataHCP80/'
-outFilePath = 'Datos/Results/Results_80x80/'
+outFilePath = 'Datos/Results/Results_G/'
 
 # outFilePath = 'Datos/Results/Results_test2/'
 # inFilePath = 'Datos/Datasets'
