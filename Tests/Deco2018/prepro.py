@@ -108,7 +108,7 @@ def prepro_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSamp
         fitt(x='M_i', fic=fic, J_fileNames=J_fileNames, Xs = Xs,
              distanceSettings=distanceSettings, tc_transf=tc_transf, C=C, numSampleSubjects=numSampleSubjects)
 
-def prepro_Optim_Individual(fic = None, neuronalModel = None,outFilePath = 'None', selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
+def prepro_Optim_Individual(fic = None, neuronalModel = None, current_subjects = None,outFilePath = 'None', selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
                    M_e_optim = None, M_i_optim = None, J_fileNames = None,
                    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
@@ -124,8 +124,12 @@ def prepro_Optim_Individual(fic = None, neuronalModel = None,outFilePath = 'None
 
     BalanceFIC.balancingMechanism = fic
     # %%%%%%%%%%%%%%% Set General Model Parameters
+    if current_subjects is not None:
+        subjects = current_subjects
+    else:
+        subjects = tc_transf.keys()
 
-    for subject in tc_transf.keys():
+    for subject in subjects:
         if G_optim is not None:
             neuronalModel.setParms({'G': G_optim})
         else:
@@ -146,6 +150,7 @@ def prepro_Optim_Individual(fic = None, neuronalModel = None,outFilePath = 'None
             outFilePath1 = outFilePath + f'Subject{subject}'
             fitt(x='M_i', fic=fic,outFilePath= outFilePath1, J_fileNames=J_fileNames, Xs = Xs,
                  distanceSettings=distanceSettings, tc_transf={subject: tc_transf[subject]}, C=C, numSampleSubjects=numSampleSubjects)
+
 def save_J (G_optim = None, M_e_optim = None, M_i_optim = None):
 
     import Models.Naskar as Naskar
