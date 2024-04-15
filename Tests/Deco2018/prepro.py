@@ -151,7 +151,7 @@ def prepro_Optim_Individual(fic = None, neuronalModel = None, current_subjects =
             fitt(x='M_i', fic=fic,outFilePath= outFilePath1, J_fileNames=J_fileNames, Xs = Xs,
                  distanceSettings=distanceSettings, tc_transf={subject: tc_transf[subject]}, C=C, numSampleSubjects=numSampleSubjects)
 
-def save_J (G_optim = None, M_e_optim = None, M_i_optim = None):
+def save_J (G_optim = None, M_e_optim = None, M_i_optim = None, Path = 'None'):
 
     import Models.Naskar as Naskar
     scheme.neuronalModel = Naskar
@@ -170,7 +170,7 @@ def save_J (G_optim = None, M_e_optim = None, M_i_optim = None):
     Tmaxneuronal = int((tmax + dt))
 
     print("Saving J...")
-    filePath = outFilePath + 'J_Optim.mat'
+    filePath = Path + 'J_Optim.mat'
     J = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60 * 1000)[tmax-1, 2, :]
     sio.savemat(filePath, {'J': J})
     print(f"DONE!!! (file: {filePath})")

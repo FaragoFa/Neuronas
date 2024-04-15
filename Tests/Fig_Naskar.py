@@ -39,8 +39,25 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
     # all tested global couplings (G in the paper):
     wes = np.arange(wStart, wEnd, wStep)  # warning: the range of wes depends on the conectome.
     N = C.shape[0]
+
     Naskar.setParms({'SC': C})
     Naskar.couplingOp.setParms(C)
+
+    print("======================================")
+    print("=    simulating E-E (no FIC)         =")
+    print("======================================")
+    maxRateNoFIC = np.zeros(len(wes))
+    Naskar.setParms({'J': np.ones(N)})  # E-E = Excitatory-Excitatory, no FIC...
+    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
+        print("Processing: {}".format(we), end='')
+        Naskar.setParms({'we': we})
+        # integrator.recompileSignatures()
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60 * 1000)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
+        maxRateNoFIC[kk] = np.max(np.mean(v, 0))
+        print(" => {}".format(maxRateNoFIC[kk]))
+    ee, = plt.plot(wes, maxRateNoFIC)
+    ee.set_label("E-E")
+
     print("======================================")
     print("=    simulating Naskar               =")
     print("======================================")
@@ -54,9 +71,9 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         #maxRateFIC[kk] = np.mean(np.max(v, axis=0))  # this is what is implemented in the code [NaskarEtAl_2018].
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
-    fic.set_label("Naskar")
+    fic.set_label("MDMF")
 
-    plt.title("Naskar model" + extraTitle)
+    plt.title("MDMF" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")
     plt.xlabel("Global Coupling (G = we)")
     plt.legend()
