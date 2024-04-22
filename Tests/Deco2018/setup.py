@@ -87,7 +87,7 @@ outFilePath = 'Datos/Results/Results_G/'
 fMRI_path = inFilePath + 'hcp1003_{}_LR_dbs80.mat'
 SC_path = inFilePath + 'SC_dbs80HARDIFULL.mat'
 
-tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST1', 'SOCIAL', 'WM']
+tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
 
 # --------------------------------------------------------------------------
 # functions to select which subjects to process
@@ -210,7 +210,7 @@ def transformEmpiricalSubjects(tc_aal, NumSubjects):
 # ==================================================================================
 # ==================================================================================
 
-def init(selectedTask = 'REST1', numSampleSubjects = 10):
+def init(selectedTask = 'REST', numSampleSubjects = 10):
 
     initRandom()
     maxSubjects = 1003
