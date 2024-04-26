@@ -15,8 +15,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ============== chose a model
+# ============== models
 import WholeBrain.Models.Naskar as Naskar
+import WholeBrain.Models.DynamicMeanField as DMF #Para graficar la curva sin FIC
 
 # ============== chose and setup an integrator
 import WholeBrain.Integrators.Euler as scheme
@@ -26,6 +27,11 @@ import WholeBrain.Integrators.Integrator as integrator
 integrator.integrationScheme = scheme
 integrator.neuronalModel = Naskar
 integrator.verbose = False
+
+# ============== FIC mechanism
+import WholeBrain.Utils.FIC.Balance_Herzog2022 as Herzog2022Mechanism
+import WholeBrain.Utils.FIC.BalanceFIC as BalanceFIC
+BalanceFIC.integrator = integrator
 
 
 np.random.seed(42)  # Fix the seed for debug purposes...
@@ -44,21 +50,6 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
     Naskar.couplingOp.setParms(C)
 
     print("======================================")
-    print("=    simulating E-E (no FIC)         =")
-    print("======================================")
-    maxRateNoFIC = np.zeros(len(wes))
-    Naskar.setParms({'J': np.ones(N)})  # E-E = Excitatory-Excitatory, no FIC...
-    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
-        print("Processing: {}".format(we), end='')
-        Naskar.setParms({'we': we})
-        # integrator.recompileSignatures()
-        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60 * 1000)[:, 1, :]  # [1] is the output from the excitatory pool, in Hz.
-        maxRateNoFIC[kk] = np.max(np.mean(v, 0))
-        print(" => {}".format(maxRateNoFIC[kk]))
-    ee, = plt.plot(wes, maxRateNoFIC)
-    ee.set_label("E-E")
-
-    print("======================================")
     print("=    simulating Naskar               =")
     print("======================================")
     maxRateFIC = np.zeros(len(wes))
@@ -72,6 +63,30 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
     fic.set_label("MDMF")
+
+    ########### Para graficar la curva sin FIC
+    # Integration parms...
+    integrator.neuronalModel = DMF
+    scheme.neuronalModel = DMF
+    DMF.setParms({'SC': C})
+    DMF.couplingOp.setParms(C)
+    BalanceFIC.balancingMechanism = Herzog2022Mechanism
+
+    print("======================================")
+    print("=    simulating E-E (no FIC)         =")
+    print("======================================")
+    maxRateNoFIC = np.zeros(len(wes))
+    DMF.setParms({'J': np.ones(N)})  # E-E = Excitatory-Excitatory, no FIC...
+    for kk, we in enumerate(wes):  # iterate over the weight range (G in the paper, we here)
+        print("Processing: {}".format(we), end='')
+        DMF.setParms({'we': we})
+        integrator.recompileSignatures()
+        v = integrator.warmUpAndSimulate(dt, Tmaxneuronal, TWarmUp=60 * 1000)[:, 1,
+            :]  # [1] is the output from the excitatory pool, in Hz.
+        maxRateNoFIC[kk] = np.max(np.mean(v, 0))
+        print(" => {}".format(maxRateNoFIC[kk]))
+    ee, = plt.plot(wes, maxRateNoFIC)
+    ee.set_label("E-E")
 
     plt.title("MDMF" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")

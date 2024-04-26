@@ -136,8 +136,11 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
     fic_d, = plt.plot(wes, maxRateFIC)
     fic_d.set_label("Deco")
 
-    for line, color in zip([1.47, 4.45], ['r', 'b']):
-        plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
+
+
+
+    # for line, color in zip([1.47, 4.45], ['r', 'b']):
+    #     plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
     plt.title("Large-scale network (DMF) + (MDMF)" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")
     plt.xlabel("Global Coupling (G = we)")
