@@ -66,7 +66,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v,0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     nask, = plt.plot(wes, maxRateFIC)
-    nask.set_label("Naskar")
+    nask.set_label("MDMF")
 
 
     ########### Herzog
@@ -111,7 +111,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_h, = plt.plot(wes, maxRateFIC)
-    fic_h.set_label("Herzog")
+    fic_h.set_label("FDMF")
 
     ########### Deco
     BalanceFIC.balancingMechanism = Deco2014Mechanism
@@ -134,7 +134,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_d, = plt.plot(wes, maxRateFIC)
-    fic_d.set_label("Deco")
+    fic_d.set_label("DMF")
 
 
 
