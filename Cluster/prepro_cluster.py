@@ -36,8 +36,6 @@ import WholeBrain.Optimizers.ParmSweep as ParmSeewp
 ParmSeewp.integrator = integrator
 ParmSeewp.simulateBOLD = simulateBOLD
 
-
-
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
 
 subjects_excluded = {515, 330, 778, 140, 77, 74, 335, 591, 978, 596, 406, 729, 282, 667, 157, 224, 290, 355, 930, 742, 425, 170, 299, 301, 557, 239, 240, 238, 820, 502, 185, 700}
@@ -88,8 +86,9 @@ def prepro():
     args = parser.parse_args()
 
     if args.we:
-        data_path = os.path.join(os.getcwd(), '..', 'Datos', 'Datasets', 'DataHCP80')
-        out_path = os.path.join(os.getcwd(), '..', 'Datos', 'Results', 'Results_cluster')
+        dir_path = os.path.dirname(os.path.abspath(__file__))
+        data_path = os.path.join(dir_path, '..', 'Datos', 'Datasets', 'DataHCP80')
+        out_path = os.path.join(dir_path, '..', 'Datos', 'Results', 'Results_cluster')
 
         sc_filename = 'SC_dbs80HARDIFULL.mat'
         sc_scale = 0.1
@@ -125,7 +124,7 @@ def prepro():
         # -----------------
         print('\n\n ====================== Model Simulations ======================\n\n')
         parmLabel = 'we'
-        NumSimSubjects = 200
+        NumSimSubjects = 100
         parm = args.we
         # ---- Perform the simulation of NumSimSubjects ----
         outFileNamePattern = out_path + '/fitting_' + parmLabel + '{}' + fileNameSuffix + '.mat'
@@ -140,8 +139,8 @@ def prepro():
     else:
         WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
 
-        # srun = ['srun', '-n', '1', '-N', '1', '-c', '1']
-        srun = ['srun', '-n1', '--exclusive']
+        srun = ['srun', '-n', '1', '-N', '1', '-c', '1', '--time=1-00']
+        # srun = ['srun', '-n1', '--exclusive']
 
         script = [sys.executable, __file__]
 
@@ -154,9 +153,9 @@ def prepro():
             print(f"Executing: {command}", flush=True)
 
         print('Waiting for the sweep to finish', flush=True)
-        # exit_codes = [p.wait() for p in workers]
+        exit_codes = [p.wait() for p in workers]
         print('Sweep finished!', flush=True)
-        # print(exit_codes)
+        print(exit_codes)
 
         # print(f"#{we}/{len(np.nditer(modelParams))}:", end='', flush=True)
         # for ds in observablesToUse:
