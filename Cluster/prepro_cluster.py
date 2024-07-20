@@ -16,7 +16,7 @@ scheme.neuronalModel = Naskar
 integrator.integrationScheme = scheme
 integrator.neuronalModel = Naskar
 integrator.verbose = False
-import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
+import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2008 as Stephan2007
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
 simulateBOLD.BOLDModel = Stephan2007
@@ -111,12 +111,11 @@ def prepro():
             import WholeBrain.Utils.decorators as deco
             deco.verbose = True
 
-        fileNameSuffix = ''
         NumSubjects = len(fMRIs)
         N = fMRIs[next(iter(fMRIs))].shape[0]  # get the first key to retrieve the value of N = number of areas
         print('fMRIs({} subjects): each entry has N={} regions'.format(NumSubjects, N))
 
-        outEmpFileName = out_path + '/fNeuro_emp' + fileNameSuffix + '.mat'
+        outEmpFileName = out_path + '/fNeuro_emp.mat'
         processed = processEmpiricalSubjects(fMRIs, observablesToUse, outEmpFileName)
 
 
@@ -127,7 +126,7 @@ def prepro():
         NumSimSubjects = 100
         parm = args.we
         # ---- Perform the simulation of NumSimSubjects ----
-        outFileNamePattern = out_path + '/fitting_' + parmLabel + '{}' + fileNameSuffix + '.mat'
+        outFileNamePattern = out_path + '/fitting_' + parmLabel + '{}.mat'
         simMeasures = ParmSeewp.evaluateForOneParm(parm, {'we': parm}, NumSimSubjects,
                                          observablesToUse, parmLabel,
                                          outFileNamePattern.format(np.round(parm, decimals=3)))
