@@ -8,6 +8,7 @@ import gc
 import h5py
 import numpy as np
 import hdf5storage as sio
+
 import WholeBrain.Observables.phFCD as phFCD
 
 import Models.Naskar as Naskar
@@ -17,7 +18,7 @@ scheme.neuronalModel = Naskar
 integrator.integrationScheme = scheme
 integrator.neuronalModel = Naskar
 integrator.verbose = False
-import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2007 as Stephan2007
+import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2008 as Stephan2007
 import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
 simulateBOLD.integrator = integrator
 simulateBOLD.BOLDModel = Stephan2007
@@ -113,7 +114,7 @@ def loadSubjectsData(fMRI_path):
     return fMRIs
 
 
-sim_inf = 1000
+sim_inf = 10000
 
 def computeFittingFileSuffix(modelParms, task):
     fitting_suffix = ""
@@ -128,10 +129,9 @@ def computeFittingFileSuffix(modelParms, task):
 def evaluateForOneParm(subject, modelParms, NumSimSubjects, fitting_suffix,
                        observablesToUse):  # observablesToUse is a dictionary of {name: (observable module, apply filters bool)}
     integrator.neuronalModel.setParms(modelParms)
-    # integrator.neuronalModel.recompileSignatures()  # just in case the integrator.neuronalModel != neuronalModel here... ;-)
-    # integrator.recompileSignatures()
+    integrator.neuronalModel.recompileSignatures()  # just in case the integrator.neuronalModel != neuronalModel here... ;-)
+    integrator.recompileSignatures()
 
-    print(f"   --- BEGIN TIME @ {fitting_suffix} ---")
     simulatedBOLDs = {}
     start_time = time.perf_counter()
     maxReps = 5
@@ -145,14 +145,13 @@ def evaluateForOneParm(subject, modelParms, NumSimSubjects, fitting_suffix,
                     dist = processBOLDSignals({0: np.ones((10,50))}, observablesToUse)
                     dist[fitting_suffix] = modelParms
                     return dist
-            print(f"      REPEATING simulation for subject {subject}: NaN or inf ({sim_inf}) found!!! (trial: {repetitionsCounter})", flush=True)
+            print(f"      REPEATING simulation for subject {subject}: NaN ({np.isnan(bds).any()}) or inf ({np.max(bds)}) found!!! (trial: {repetitionsCounter})", flush=True)
             bds = simulateBOLD.simulateSingleSubject().T
         simulatedBOLDs[nsub] = bds
 
     dist = processBOLDSignals(simulatedBOLDs, observablesToUse)
     # now, add {label: currValue} to the dist dictionary, so this info is in the saved file (if using the decorator @loadOrCompute)
     dist[fitting_suffix] = modelParms
-    print("   --- TOTAL TIME for subject {}: {} seconds ---".format(subject, time.perf_counter() - start_time))
     return dist
 
 
@@ -163,6 +162,7 @@ def prepro():
     parser.add_argument("--subject", help="Subject to explore", type=int, required=False)
     parser.add_argument("--me-range", nargs=3, help="Parameter sweep range for Me", type=float, required=False)
     parser.add_argument("--mi-range", nargs=3, help="Parameter sweep range for Mi", type=float, required=False)
+    parser.add_argument("--task", help="Task to compute", type=str, required=False)
 
     args = parser.parse_args()
 
@@ -189,52 +189,74 @@ def prepro():
         mes = np.arange(args.me_range[0], args.me_range[1], args.me_range[2])
         mis = np.arange(args.mi_range[0], args.mi_range[1], args.mi_range[2])
 
-        print(f"Starting fitting process for subject {args.subject}, with {len(tasks)} tasks, {len(mes)} points for M_e and {len(mis)} points for M_i")
-        for task in tasks:  
-            print(f"Starting task {task} for subject {args.subject}")          
-            outEmpFileName = out_path + '/fNeuro_emp_' + task + '.mat'
-            fMRI = read_matlab_h5py_single(fMRI_path.format(task), args.subject)
-            observablesToUse = {'phFCD': (phFCD, True)}
-            processed = processEmpiricalSubjects({0: fMRI}, observablesToUse, outEmpFileName)
-            for me in mes:
-                for mi in mis:
+        start_time = time.perf_counter()
 
-                    N = fMRI.shape[0]  # get the first key to retrieve the value of N = number of areas
-                    NumSimSubjects = 10
-                    params = {'we': args.we, 'M_e': me, 'M_i': mi}
-                    # ---- Perform the simulation of NumSimSubjects ----
-                    fitting_suffix = computeFittingFileSuffix(params, task)
-                    outFileName = out_path + '/fitting_' + fitting_suffix + '.mat'
-                    simMeasures = evaluateForOneParm(args.subject, params, NumSimSubjects, fitting_suffix,
-                                                     observablesToUse,
-                                                     outFileName)
-                    gc.collect()
+        task = args.task
+        print(f"Starting fitting process for subject {args.subject} for task {task}, {len(mes)} points for M_e and {len(mis)} points for M_i")
+        outEmpFileName = out_path + '/fNeuro_emp_' + task + '.mat'
+        fMRI = read_matlab_h5py_single(fMRI_path.format(task), args.subject)
+        processed = processEmpiricalSubjects({0: fMRI}, {'phFCD': (phFCD, True)}, outEmpFileName)
+        for me in mes:
+            for mi in mis:
+                observablesToUse = {'phFCD': (phFCD, True)}
+                N = fMRI.shape[0]  # get the first key to retrieve the value of N = number of areas
+                NumSimSubjects = 10
+                params = {'we': args.we, 'M_e': me, 'M_i': mi}
+                # ---- Perform the simulation of NumSimSubjects ----
+                fitting_suffix = computeFittingFileSuffix(params, task)
+                outFileName = out_path + '/fitting_' + fitting_suffix + '.mat'
+                simMeasures = evaluateForOneParm(args.subject, params, NumSimSubjects, fitting_suffix,
+                                                    observablesToUse,
+                                                    outFileName)
+                gc.collect()
+        
+        print(f"Time for subject {args.subject}, task {task}, sweep {fitting_suffix} = {time.perf_counter() - start_time}")
+        print("##DONE##", flush=True)
+        exit(0)
                     
 
     else:
 
         num_subjects = 1003
-        set_subjects = set(range(0, num_subjects)) - subjects_excluded
-
-        srun = ['srun', '-n', '1', '-N', '1', '-c', '1', '--time=2-00']
-        # srun = ['srun', '-n1', '--exclusive']
+        chunk_size = 20
+        list_subjects = list(set(range(0, num_subjects)) - subjects_excluded)
+        packs_subjects = [list_subjects[i:i+chunk_size] for i in range(0, len(list_subjects), chunk_size)]
+        srun = ['srun', '-n1', '-N1', '--time=2-00', '--exclusive', '--distribution=block:*:*,NoPack']
 
         script = [sys.executable, __file__]
 
-        print(f'Starting srun sweep for {len(set_subjects)} subjects', flush=True)
+
+        finished = []
         workers = []
-        for ns in set_subjects:
-            command = [*srun, *script]
-            command.extend(['--subject', f'{ns}'])
-            command.extend(['--we', '16'])
-            command.extend(['--me-range', '0.1', '1.0001', '0.1'])
-            command.extend(['--mi-range', '0.1', '1.0001', '0.1'])
-            workers.append(subprocess.Popen(command))
-            print(f"Executing: {command}", flush=True)
+        max_proc = 200
+        for pack in packs_subjects:
+            for task in tasks:
+                print(f'Starting srun sweep for task {task} with pack [{pack[0]}:{pack[-1]}]', flush=True)
+                for ns in pack:
+                    for me in np.arange(0.8, 1.5001, 0.05):
+                        command = [*srun, *script]
+                        command.extend(['--subject', f'{ns}'])
+                        command.extend(['--task', task])
+                        command.extend(['--we', '15'])
+                        command.extend(['--me-range', f'{me}', f'{me+0.0999}', '0.1'])
+                        command.extend(['--mi-range', '0.3', '1.1001', '0.05'])
+                        workers.append(subprocess.Popen(command))
+                        print(f"Executing: {command}", flush=True)
+                        while len(workers) >= max_proc:
+                            print(f"Maximum concurrent process {len(workers)} >= {max_proc} reached. Waiting ...", flush=True)
+                            new_workers = []
+                            for p in workers:
+                                try:
+                                    p.wait(timeout=1)
+                                    finished.append(p)
+                                    print(f"Process {p.pid} finished!", flush=True)
+                                except:
+                                    new_workers.append(p)
+                            workers = new_workers
 
         print('Waiting for the sweep to finish', flush=True)
         exit_codes = [p.wait() for p in workers]
-        print('Sweep finished!', flush=True)
+        print(f'Sweep finished for task {task} and pack [{pack[0]}:{pack[-1]}]!', flush=True)
         print(exit_codes)
 
         # print(f"#{we}/{len(np.nditer(modelParams))}:", end='', flush=True)
