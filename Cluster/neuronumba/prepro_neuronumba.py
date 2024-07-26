@@ -1,8 +1,10 @@
 import argparse
+import hdf5storage
 import subprocess
 import sys
 import os
-
+import time
+import glob
 
 import h5py
 import numpy as np
@@ -21,35 +23,6 @@ from neuronumba.simulator.monitors import RawSubSample
 from neuronumba.simulator.simulator import Simulator
 from neuronumba.observables.accumulators import ConcatenatingAccumulator
 
-
-# import WholeBrain.Observables.phFCD as phFCD
-
-# import Models.Naskar as Naskar
-# import WholeBrain.Integrators.EulerMaruyama as scheme
-# import WholeBrain.Integrators.Integrator as integrator
-# scheme.neuronalModel = Naskar
-# integrator.integrationScheme = scheme
-# integrator.neuronalModel = Naskar
-# integrator.verbose = False
-# import WholeBrain.Utils.BOLD.BOLDHemModel_Stephan2008 as Stephan2007
-# import WholeBrain.Utils.simulate_SimAndBOLD as simulateBOLD
-# simulateBOLD.integrator = integrator
-# simulateBOLD.BOLDModel = Stephan2007
-# import WholeBrain.Optimizers.ParmSweep as optim1D
-# optim1D.simulateBOLD = simulateBOLD
-# optim1D.integrator = integrator
-# import WholeBrain.Observables.phFCD as phFCD
-
-# import WholeBrain.Observables.BOLDFilters as filters
-# filters.k = 2                             # 2nd order butterworth filter
-# filters.flp = .01                         # lowpass frequency of filter
-# filters.fhi = .1                          # highpass
-# filters.TR = 2.                           # TR
-
-# from WholeBrain.Utils.preprocessSignal import processBOLDSignals, processEmpiricalSubjects
-# import WholeBrain.Optimizers.ParmSweep as ParmSeewp
-# ParmSeewp.integrator = integrator
-# ParmSeewp.simulateBOLD = simulateBOLD
 
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
 
@@ -92,7 +65,7 @@ def process_empirical_subjects(bold_signals, observable, accumulator):
 
     # Loop over subjects
     for pos, s in enumerate(bold_signals):
-        print('   Processing signal {}/{} Subject: {} ({}x{})'.format(pos+1, num_subjects, s, bold_signals[s].shape[0], bold_signals[s].shape[1]), end='', flush=True)
+        print('   Processing signal {}/{} Subject: {} ({}x{})'.format(pos+1, num_subjects, s, bold_signals[s].shape[0], bold_signals[s].shape[1]), flush=True)
         signal = bold_signals[s]  # LR_version_symm(tc[s])
 
         bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
@@ -108,6 +81,8 @@ def process_empirical_subjects(bold_signals, observable, accumulator):
 def prepro():
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--post-g-optim", help="Find optim G", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--process-empirical", help="Process empirical subjects", action=argparse.BooleanOptionalAction)
     parser.add_argument("--we", help="G value to explore", type=float, required=False)
     parser.add_argument("--we-range", nargs=3, help="Parameter sweep range for G", type=float, required=False)
 
@@ -119,127 +94,103 @@ def prepro():
     fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
     emp_filename = os.path.join(out_path, 'fNeuro_emp.mat')
 
-    if os.path.exists(emp_filename):
-        print("Empirical subjects already computed")
-    else:
-        print("Loading data...")
-        fMRIs = loadSubjectsData(fMRI_path.format('REST'))
-        process_empirical_subjects(fMRIs, PhFCD(), ConcatenatingAccumulator())
-        sio.savemat(emp_filename)
 
-    exit(0)
+    if args.process_empirical:
+        if os.path.exists(emp_filename):
+            raise FileExistsError(f"File <{emp_filename}> already exists!")
 
-    # if args.we:
+        bold_signals = loadSubjectsData(fMRI_path.format("REST"))
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator())
+        sio.savemat(emp_filename, {'phFCD': processed})
+        print(f'Processed empirical subjects, n = {len(bold_signals)}')
+        exit(0)
 
-    #     sc_filename = 'SC_dbs80HARDIFULL.mat'
-    #     sc_scale = 0.1
-    #     sc_path = os.path.join(data_path, sc_filename)
-
-    #     fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
-
-    #     print(f"Loading {sc_path}")
-    #     sc80 = sio.loadmat(sc_path)['SC_dbs80FULL']
-    #     C = sc80 / np.max(sc80) * sc_scale  # Normalization...
-
-    #     n_rois = C.shape[0]
-    #     lengths = np.random.rand(n_rois, n_rois)*10.0 + 1.0
-    #     speed = 1.0
-    #     con = Connectivity(weights=C, lengths=lengths, speed=speed)
-    #     n_rois = con.n_rois
-    #     m = Naskar()
-    #     dt = 0.1
-    #     integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 0, 0])
-    #     # coupling = CouplingLinearDense(weights=weights, delays=con.delays, c_vars=np.array([0], dtype=np.int32), n_rois=n_rois)
-    #     coupling = CouplingLinearNoDelays(weights=weights, c_vars=np.array([0], dtype=np.int32), n_rois=n_rois, g=1.0)
-    #     # mnt = TemporalAverage(period=1.0, dt=dt)
-    #     monitor = RawSubSample(period=1.0, dt=dt)
-    #     s = Simulator(connectivity=con, model=m, coupling=coupling, integrator=integ, monitors=[monitor])
-    #     s.configure()
-    #     s.run(0, 100000)
+    if not os.path.exists(emp_filename):
+        raise FileNotFoundError(f"File {emp_filename} does not exists!")
 
 
+    if args.post_g_optim:
+        file_list = glob.glob(os.path.join(out_path,'fitting_g_*.mat'))
+        measure = KolmogorovSmirnovStatistic()
+        processed = sio.loadmat(emp_filename)['phFCD']
+        for f in file_list:
+            simulated = sio.loadmat(f)['phFCD']
+            distance = measure.distance(processed['phFCD'], simulated)
+            print(f"Distance for <{os.path.basename(f)} = {distance}", flush=True)
+            
 
+    if args.we:
+        out_file = os.path.join(out_path, f'fitting_g_{args.we}.mat')
 
+        if os.path.exists(out_file):
+            exit(0)
 
+        sc_filename = 'SC_dbs80HARDIFULL.mat'
+        sc_scale = 0.1
+        sc_path = os.path.join(data_path, sc_filename)
 
+        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
 
+        print(f"Loading {sc_path}")
+        sc80 = sio.loadmat(sc_path)['SC_dbs80FULL']
+        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
 
+        n_rois = C.shape[0]
+        lengths = np.random.rand(n_rois, n_rois)*10.0 + 1.0
+        speed = 1.0
+        dt = 0.1
 
+        processed = sio.loadmat(emp_filename)['phFCD']
 
+        accumulator = ConcatenatingAccumulator()
+        measure_values = accumulator.init(np.r_[0], n_rois)
+        num_sim_subjects = 100
 
+        print('\n\n ====================== Model Simulations ======================\n\n')
+        for n in range(num_sim_subjects):
+            coupling = CouplingLinearNoDelays(weights=C, g=args.we)
+            con = Connectivity(weights=C, lengths=lengths, speed=speed)
+            m = Naskar()
+            integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 0, 0])
+            monitor = RawSubSample(period=1.0, state_vars=[], obs_vars=[1])
+            s = Simulator(connectivity=con, model=m, coupling=coupling, integrator=integ, monitors=[monitor])
+            s.configure()
+            start_time = time.perf_counter()
+            s.run(0, 440000)
 
+            b = BoldStephan2008()
+            signal = monitor.data_observed()[:, 0, :]
+            bold = b.compute_bold(signal, monitor.period)
+            bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
+            bold_filt = bpf.filter(bold)
+            ph_fcd = PhFCD()
+            simulated = ph_fcd.from_fmri(bold_filt)
+            measure_values = accumulator.accumulate(measure_values, n, simulated)
+            t_dist = time.perf_counter() - start_time
+            print(f"Simulated subject {n}/{num_sim_subjects} in {t_dist} seconds", flush=True)
 
-    #     Naskar.setParms({'SC': C})  # Set the model with the SC
-    #     Naskar.couplingOp.setParms(C)
+        hdf5storage.savemat(out_file, {'phFCD': measure_values})
 
-    #     fMRIs = loadSubjectsData(fMRI_path.format('REST'))
-    #     observablesToUse = {'phFCD': (phFCD, True)}
+    elif args.we_range:
+        WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
 
-    #     print("\n\n*************** Starting: optim1D.distanceForAll_modelParams *****************\n\n")
-    #     if True:
-    #         import WholeBrain.Utils.decorators as deco
-    #         deco.verbose = True
+        srun = ['srun', '-n', '1', '-N', '1', '-c', '1', '--time=9-00']
+        # srun = ['srun', '-n1', '--exclusive']
 
-    #     NumSubjects = len(fMRIs)
-    #     N = fMRIs[next(iter(fMRIs))].shape[0]  # get the first key to retrieve the value of N = number of areas
-    #     print('fMRIs({} subjects): each entry has N={} regions'.format(NumSubjects, N))
+        script = [sys.executable, __file__]
 
-    #     emp_filename = out_path + '/fNeuro_emp.mat'
-    #     processed = processEmpiricalSubjects(fMRIs, observablesToUse, emp_filename)
+        print('Starting srun sweep', flush=True)
+        workers = []
+        for we in WEs:
+            command = [*srun, *script]
+            command.extend(['--we', f'{we:.2f}'])
+            workers.append(subprocess.Popen(command))
+            print(f"Executing: {command}", flush=True)
 
-
-    #     # Model Simulations
-    #     # -----------------
-    #     print('\n\n ====================== Model Simulations ======================\n\n')
-    #     parmLabel = 'we'
-    #     NumSimSubjects = 100
-    #     parm = args.we
-    #     # ---- Perform the simulation of NumSimSubjects ----
-    #     outFileNamePattern = out_path + '/fitting_' + parmLabel + '{}.mat'
-    #     simMeasures = ParmSeewp.evaluateForOneParm(parm, {'we': parm}, NumSimSubjects,
-    #                                      observablesToUse, parmLabel,
-    #                                      outFileNamePattern.format(np.round(parm, decimals=3)))
-
-    #     # ---- and now compute the final FC, FCD, ... distances for this G (we)!!! ----
-
-    #     print("DONE!!!")
-
-    # else:
-    #     WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
-
-    #     srun = ['srun', '-n', '1', '-N', '1', '-c', '1', '--time=1-00']
-    #     # srun = ['srun', '-n1', '--exclusive']
-
-    #     script = [sys.executable, __file__]
-
-    #     print('Starting srun sweep', flush=True)
-    #     workers = []
-    #     for we in WEs:
-    #         command = [*srun, *script]
-    #         command.extend(['--we', f'{we}'])
-    #         workers.append(subprocess.Popen(command))
-    #         print(f"Executing: {command}", flush=True)
-
-    #     print('Waiting for the sweep to finish', flush=True)
-    #     exit_codes = [p.wait() for p in workers]
-    #     print('Sweep finished!', flush=True)
-    #     print(exit_codes)
-
-    #     # print(f"#{we}/{len(np.nditer(modelParams))}:", end='', flush=True)
-    #     # for ds in observablesToUse:
-    #     #     fitting[ds][pos] = observablesToUse[ds][0].distance(simMeasures[ds], processed[ds])
-    #     #     print(f" {ds}: {fitting[ds][pos]};", end='', flush=True)
-    #     # print("\n")
-    #     #
-    #     # print(
-    #     #     "\n\n#####################################################################################################")
-    #     # print(f"# Results (in ({modelParams[0]}, {modelParams[-1]})):")
-    #     # for ds in observablesToUse:
-    #     #     optimValDist = observablesToUse[ds][0].findMinMax(fitting[ds])
-    #     #     parmPos = [a for a in np.nditer(modelParams)][optimValDist[1]]
-    #     #     print(f"# Optimal {ds} =     {optimValDist[0]} @ {np.round(parmPos, decimals=3)}")
-    #     # print(
-    #     #     "#####################################################################################################\n\n")
+        print('Waiting for the sweep to finish', flush=True)
+        exit_codes = [p.wait() for p in workers]
+        print('Sweep finished!', flush=True)
+        print(exit_codes)
 
 
 if __name__ == "__main__":
