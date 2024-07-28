@@ -23,12 +23,13 @@ from neuronumba.simulator.monitors import RawSubSample
 from neuronumba.simulator.simulator import Simulator
 from neuronumba.observables.accumulators import ConcatenatingAccumulator
 
-
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
 
-subjects_excluded = {515, 330, 778, 140, 77, 74, 335, 591, 978, 596, 406, 729, 282, 667, 157, 224, 290, 355, 930, 742, 425, 170, 299, 301, 557, 239, 240, 238, 820, 502, 185, 700}
+subjects_excluded = {515, 330, 778, 140, 77, 74, 335, 591, 978, 596, 406, 729, 282, 667, 157, 224, 290, 355, 930, 742,
+                     425, 170, 299, 301, 557, 239, 240, 238, 820, 502, 185, 700}
 
-def read_matlab_h5py(filename):
+
+def read_matlab_h5py(filename, max_subjects=None):
     with h5py.File(filename, "r") as f:
         all_fMRI = {}
         subjects = list(f['subject'])
@@ -41,37 +42,51 @@ def read_matlab_h5py(filename):
                 all_fMRI[pos] = dbs80ts.T
             except:
                 print(f'ignoring register {subj} at {pos}')
+            if max_subjects and pos >= max_subjects:
+                break
 
     return all_fMRI
 
 
-def loadSubjectsData(fMRI_path):
+def loadSubjectsData(fMRI_path, max_subjects=None):
     print(f'Loading {fMRI_path}')
-    fMRIs = read_matlab_h5py(fMRI_path)   # ignore the excluded list
+    fMRIs = read_matlab_h5py(fMRI_path, max_subjects)  # ignore the excluded list
     return fMRIs
 
-def process_empirical_subjects(bold_signals, observable, accumulator):
-       # Process the BOLD signals
+
+def compute_simulated(signal, period):
+    b = BoldStephan2008()
+    bold = b.compute_bold(signal, period)
+    bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
+    bold_filt = bpf.filter(bold.T)
+    ph_fcd = PhFCD()
+    simulated = ph_fcd.from_fmri(bold_filt)
+    return simulated
+
+
+def process_empirical_subjects(bold_signals, observable, accumulator, bpf):
+    # Process the BOLD signals
     # BOLDSignals is a dictionary of subjects {subjectName: subjectBOLDSignal}
     # observablesToUse is a dictionary of {observableName: observablePythonModule}
     ds = 'phFCD'
     num_subjects = len(bold_signals)
-    n_rois = bold_signals[next(iter(bold_signals))].shape[0]  # get the first key to retrieve the value of N = number of areas
+    n_rois = bold_signals[next(iter(bold_signals))].shape[
+        0]  # get the first key to retrieve the value of N = number of areas
 
     # First, let's create a data structure for the observables operations...
     measureValues = {}
     measureValues[ds] = accumulator.init(num_subjects, n_rois)
 
-
     # Loop over subjects
     for pos, s in enumerate(bold_signals):
-        print('   Processing signal {}/{} Subject: {} ({}x{})'.format(pos+1, num_subjects, s, bold_signals[s].shape[0], bold_signals[s].shape[1]), flush=True)
+        print(
+            '   Processing signal {}/{} Subject: {} ({}x{})'.format(pos + 1, num_subjects, s, bold_signals[s].shape[0],
+                                                                    bold_signals[s].shape[1]), flush=True)
         signal = bold_signals[s]  # LR_version_symm(tc[s])
 
-        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
         signal_filt = bpf.filter(signal)
         procSignal = observable.from_fmri(signal_filt)
-        measureValues[ds] = accumulator.accumulate(measureValues[ds], pos, procSignal)
+        measureValues[ds] = accumulator.accumulate(measureValues[ds], pos, procSignal[ds])
 
     measureValues[ds] = accumulator.postprocess(measureValues[ds])
 
@@ -79,8 +94,10 @@ def process_empirical_subjects(bold_signals, observable, accumulator):
 
 
 def prepro():
-
     parser = argparse.ArgumentParser()
+
+    parser.add_argument("--multi", help="Use multiple fNeuro_emp files", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--max-emp_subjects", help="Maximum empirical subjects to use", type=int, required=False)
     parser.add_argument("--post-g-optim", help="Find optim G", action=argparse.BooleanOptionalAction)
     parser.add_argument("--process-empirical", help="Process empirical subjects", action=argparse.BooleanOptionalAction)
     parser.add_argument("--we", help="G value to explore", type=float, required=False)
@@ -93,31 +110,170 @@ def prepro():
     out_path = os.path.join(dir_path, '..', '..', 'Datos', 'Results', 'Results_cluster', 'neuronumba')
     fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
     emp_filename = os.path.join(out_path, 'fNeuro_emp.mat')
+    emp_filename_pattern = os.path.join(out_path, 'fNeuro_emp_{}_{}.mat')
 
+    if args.process_empirical and args.multi:
+        if os.path.exists(emp_filename):
+            raise FileExistsError(f"File <{emp_filename}> already exists!")
+
+        bold_signals = loadSubjectsData(fMRI_path.format("REST"), 100)
+
+        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=True)
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+        sio.savemat(emp_filename_pattern.format("dt", "dm"), processed)
+
+        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=False, apply_demean=True)
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+        sio.savemat(emp_filename_pattern.format("no", "dm"), processed)
+
+        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=False)
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+        sio.savemat(emp_filename_pattern.format("dt", "no"), processed)
+
+        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=False, apply_demean=False)
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+        sio.savemat(emp_filename_pattern.format("no", "no"), processed)
+
+        print(f'Processed empirical subjects, n = {len(bold_signals)}')
+        exit(0)
 
     if args.process_empirical:
         if os.path.exists(emp_filename):
             raise FileExistsError(f"File <{emp_filename}> already exists!")
 
         bold_signals = loadSubjectsData(fMRI_path.format("REST"))
-        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator())
-        sio.savemat(emp_filename, {'phFCD': processed})
+
+        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=True)
+        processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+        sio.savemat(emp_filename, processed)
+
         print(f'Processed empirical subjects, n = {len(bold_signals)}')
         exit(0)
 
-    if not os.path.exists(emp_filename):
-        raise FileNotFoundError(f"File {emp_filename} does not exists!")
-
-
     if args.post_g_optim:
-        file_list = glob.glob(os.path.join(out_path,'fitting_g_*.mat'))
-        measure = KolmogorovSmirnovStatistic()
-        processed = sio.loadmat(emp_filename)['phFCD']
-        for f in file_list:
-            simulated = sio.loadmat(f)['phFCD']
-            distance = measure.distance(processed['phFCD'], simulated)
+        file_list = glob.glob(os.path.join(out_path, 'fitting_g_*.mat'))
+        for f in sorted(file_list):
+            distance = sio.loadmat(f)['dist']
             print(f"Distance for <{os.path.basename(f)} = {distance}", flush=True)
-            
+
+        exit(0)
+
+    if args.we_range and args.multi:
+        sc_filename = 'SC_dbs80HARDIFULL.mat'
+        sc_scale = 0.1
+        sc_path = os.path.join(data_path, sc_filename)
+
+        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
+
+        print(f"Loading {sc_path}")
+        sc80 = sio.loadmat(sc_path)['SC_dbs80FULL']
+        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
+
+        n_rois = C.shape[0]
+        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
+        speed = 1.0
+        dt = 0.1
+
+        WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
+
+        for we in WEs:
+
+            out_file_pattern = os.path.join(out_path, f'fitting_g_{{}}_{{}}_{we}.mat')
+
+            for dtr in ['dt', 'no']:
+                for dmn in ['dm', 'no']:
+                    out_file = out_file_pattern.format(dtr, dmn)
+
+                    if os.path.exists(out_file):
+                        continue
+
+                    emp_filename = emp_filename_pattern.format(dtr, dmn)
+                    if not os.path.exists(emp_filename):
+                        raise FileNotFoundError(f"File {emp_filename} does not exists!")
+
+                    processed = sio.loadmat(emp_filename)['phFCD']
+
+                    accumulator = ConcatenatingAccumulator()
+                    measure_values = accumulator.init(np.r_[0], n_rois)
+                    num_sim_subjects = 10
+
+                    print(f'Starting simulations for {dtr}_{dmn} with we={we}', flush=True)
+                    for n in range(num_sim_subjects):
+                        coupling = CouplingLinearNoDelays(weights=C, g=we)
+                        con = Connectivity(weights=C, lengths=lengths, speed=speed)
+                        m = Naskar()
+                        integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-2, 0, 0])
+                        # integ = EulerDeterministic(dt=dt)
+                        monitor = RawSubSample(period=1.0, state_vars=m.get_state_sub(), obs_vars=m.get_observed_sub(['re']))
+                        s = Simulator(connectivity=con, model=m, coupling=coupling, integrator=integ, monitors=[monitor])
+                        s.configure()
+                        s.run(0, 440000)
+
+                        signal = monitor.data('re')
+                        b = BoldStephan2008()
+                        bold = b.compute_bold(signal, monitor.period)
+                        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=dtr == 'dt', apply_demean=dmn == 'dm')
+                        bold_filt = bpf.filter(bold.T)
+                        ph_fcd = PhFCD()
+                        simulated = ph_fcd.from_fmri(bold_filt)
+                        measure_values = accumulator.accumulate(measure_values, n, simulated['phFCD'])
+                        print(f"Simulated subject {n}/{num_sim_subjects}", flush=True)
+
+                    measure = KolmogorovSmirnovStatistic()
+                    dist = measure.distance(processed, measure_values)
+                    hdf5storage.savemat(out_file, {'phFCD': measure_values, 'dist': dist})
+
+        exit(0)
+
+    if args.we and args.multi:
+        out_file = os.path.join(out_path, f'fitting_g_dt_dm_{args.we}.mat')
+
+        if os.path.exists(out_file):
+            exit(0)
+
+        sc_filename = 'SC_dbs80HARDIFULL.mat'
+        sc_scale = 0.1
+        sc_path = os.path.join(data_path, sc_filename)
+
+        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
+
+        print(f"Loading {sc_path}")
+        sc80 = sio.loadmat(sc_path)['SC_dbs80FULL']
+        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
+
+        n_rois = C.shape[0]
+        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
+        speed = 1.0
+        dt = 0.1
+
+        processed = sio.loadmat(emp_filename_pattern.format('dt', 'dm'))['phFCD']
+
+        accumulator = ConcatenatingAccumulator()
+        measure_values = accumulator.init(np.r_[0], n_rois)
+        num_sim_subjects = 1
+
+        print('\n\n ====================== Model Simulations ======================\n\n')
+        for n in range(num_sim_subjects):
+            coupling = CouplingLinearNoDelays(weights=C, g=args.we)
+            con = Connectivity(weights=C, lengths=lengths, speed=speed)
+            m = Naskar()
+            # integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 0, 0])
+            integ = EulerDeterministic(dt=dt)
+            monitor = RawSubSample(period=1.0, state_vars=m.get_state_sub(), obs_vars=m.get_observed_sub(['re']))
+            s = Simulator(connectivity=con, model=m, coupling=coupling, integrator=integ, monitors=[monitor])
+            s.configure()
+            start_time = time.perf_counter()
+            s.run(0, 440000)
+
+            signal = monitor.data('re')
+            simulated = compute_simulated(signal, monitor.period)
+            measure_values = accumulator.accumulate(measure_values, n, simulated['phFCD'])
+            t_dist = time.perf_counter() - start_time
+            print(f"Simulated subject {n}/{num_sim_subjects} in {t_dist} seconds", flush=True)
+
+        measure = KolmogorovSmirnovStatistic()
+        dist = measure.distance(processed, measure_values)
+        hdf5storage.savemat(out_file, {'phFCD': measure_values, 'dist': dist})
 
     if args.we:
         out_file = os.path.join(out_path, f'fitting_g_{args.we}.mat')
@@ -136,7 +292,7 @@ def prepro():
         C = sc80 / np.max(sc80) * sc_scale  # Normalization...
 
         n_rois = C.shape[0]
-        lengths = np.random.rand(n_rois, n_rois)*10.0 + 1.0
+        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
         speed = 1.0
         dt = 0.1
 
@@ -146,30 +302,30 @@ def prepro():
         measure_values = accumulator.init(np.r_[0], n_rois)
         num_sim_subjects = 100
 
-        print('\n\n ====================== Model Simulations ======================\n\n')
+        print(f'Computing distance for G={args.we}', flush=True)
         for n in range(num_sim_subjects):
             coupling = CouplingLinearNoDelays(weights=C, g=args.we)
             con = Connectivity(weights=C, lengths=lengths, speed=speed)
             m = Naskar()
-            integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 0, 0])
-            monitor = RawSubSample(period=1.0, state_vars=[], obs_vars=[1])
+            # integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 0, 0])
+            integ = EulerDeterministic(dt=dt)
+            monitor = RawSubSample(period=1.0, state_vars=m.get_state_sub(), obs_vars=m.get_observed_sub(['re']))
             s = Simulator(connectivity=con, model=m, coupling=coupling, integrator=integ, monitors=[monitor])
             s.configure()
             start_time = time.perf_counter()
             s.run(0, 440000)
 
-            b = BoldStephan2008()
-            signal = monitor.data_observed()[:, 0, :]
-            bold = b.compute_bold(signal, monitor.period)
-            bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
-            bold_filt = bpf.filter(bold)
-            ph_fcd = PhFCD()
-            simulated = ph_fcd.from_fmri(bold_filt)
-            measure_values = accumulator.accumulate(measure_values, n, simulated)
+            signal = monitor.data('re')
+            simulated = compute_simulated(signal, monitor.period)
+            measure_values = accumulator.accumulate(measure_values, n, simulated['phFCD'])
             t_dist = time.perf_counter() - start_time
             print(f"Simulated subject {n}/{num_sim_subjects} in {t_dist} seconds", flush=True)
 
-        hdf5storage.savemat(out_file, {'phFCD': measure_values})
+        measure = KolmogorovSmirnovStatistic()
+        dist = measure.distance(processed, measure_values)
+        hdf5storage.savemat(out_file, {'phFCD': measure_values, 'dist': dist})
+
+
 
     elif args.we_range:
         WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
@@ -191,6 +347,8 @@ def prepro():
         exit_codes = [p.wait() for p in workers]
         print('Sweep finished!', flush=True)
         print(exit_codes)
+
+
 
 
 if __name__ == "__main__":
