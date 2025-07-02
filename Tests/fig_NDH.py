@@ -66,7 +66,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v,0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     nask, = plt.plot(wes, maxRateFIC)
-    nask.set_label("Naskar")
+    nask.set_label("MDMF")
 
 
     ########### Herzog
@@ -111,7 +111,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_h, = plt.plot(wes, maxRateFIC)
-    fic_h.set_label("Herzog")
+    fic_h.set_label("FDMF")
 
     ########### Deco
     BalanceFIC.balancingMechanism = Deco2014Mechanism
@@ -134,10 +134,13 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic_d, = plt.plot(wes, maxRateFIC)
-    fic_d.set_label("Deco")
+    fic_d.set_label("DMF")
 
-    for line, color in zip([1.47, 4.45], ['r', 'b']):
-        plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
+
+
+
+    # for line, color in zip([1.47, 4.45], ['r', 'b']):
+    #     plt.axvline(x=line, label='line at x = {}'.format(line), c=color)
     plt.title("Large-scale network (DMF) + (MDMF)" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")
     plt.xlabel("Global Coupling (G = we)")

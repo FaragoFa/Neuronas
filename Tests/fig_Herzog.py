@@ -84,7 +84,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6 + 0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v, 0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
-    fic.set_label("FIC")
+    fic.set_label("FDMF")
 
     # for line, color in zip([1.47, 4.45], ['r', 'b']):
     #     plt.axvline(x=line, label='line at x = {}'.format(line), c=color)

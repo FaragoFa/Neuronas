@@ -81,7 +81,7 @@ def plotMaxFrecForAllWe(C, wStart=0, wEnd=6+0.001, wStep=0.05,
         maxRateFIC[kk] = np.max(np.mean(v,0))
         print("maxRateFIC => {}".format(maxRateFIC[kk]))
     fic, = plt.plot(wes, maxRateFIC)
-    fic.set_label("FIC")
+    fic.set_label("DMF")
 
     plt.title("Large-scale network (DMF)" + extraTitle)
     plt.ylabel("Maximum rate (Hz)")

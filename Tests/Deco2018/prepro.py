@@ -74,7 +74,47 @@ def fitt(x = None, fic = None,outFilePath= 'None', J_fileNames = None, Xs = None
                 })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
     print(f"DONE!!! (file: {filePath})")
 
-def prepro_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
+def fitt2(x = None, fic = None,outFilePath= 'None', J_fileNames = None, Xs = None, distanceSettings= None, C= None, numSampleSubjects= None, tc_transf= None):
+
+    # Integration parms...
+    dt = 0.1
+    tmax = 10000.
+    Tmaxneuronal = int((tmax + dt))
+
+    # Model Simulations
+    # ------------------------------------------
+    if fic is not None:
+        balancedParms = BalanceFIC.Balance_AllJ9(C, Xs, baseName=J_fileNames)
+        modelParms = [balancedParms[i] for i in balancedParms]
+
+    else:
+        result = {}
+        for xi in Xs:  # iterate over the weight range (G in the paper, we here)
+            result[xi] = {x: xi}
+        modelParms = [result[i] for i in result]
+
+    # Now, optimize all we (G) values: determine optimal G to work with
+    print("\n\n###################################################################")
+    print(f"# Compute {x}_Optim")
+    print("###################################################################\n")
+    fitting = optim1D.distanceForAll_Parms(tc_transf, Xs, modelParms,
+                                           observablesToUse=distanceSettings, NumSimSubjects=numSampleSubjects,
+                                           parmLabel=x,
+                                           outFilePath=outFilePath, fileNameSuffix='')
+
+    optimal = {ds: distanceSettings[ds][0].findMinMax(fitting[ds]) for ds in distanceSettings}
+    print("Optimal:\n", optimal)
+
+    filePath = outFilePath + '/DecoEtAl2018_fneuro.mat'
+    sio.savemat(filePath, #{'JI': JI})
+                {x: Xs,
+                 'FC_fitt': fitting['FC'],
+                 'swFCD_fitt': fitting['swFCD'],
+                 'phFCD_fitt': fitting['phFCD'],
+                })  # save('fneuro.mat','WE','fitting2','fitting5','FCDfitt2','FCDfitt5');
+    print(f"DONE!!! (file: {filePath})")
+
+def prepro_Optim(fic = None, neuronalModel = None,outFilePath1 = 'None', selectedTask ='REST',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
                    M_e_optim = None, M_i_optim = None, J_fileNames = None,
                    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
@@ -93,22 +133,22 @@ def prepro_Optim(fic = None, neuronalModel = None, selectedTask ='REST1',numSamp
     if G_optim is not None:
         neuronalModel.setParms({'G': G_optim})
     else:
-        fitt(x= 'G', fic= fic, J_fileNames = J_fileNames, Xs = Xs,
+        fitt2(x= 'G', fic= fic, J_fileNames = J_fileNames, Xs = Xs,outFilePath= outFilePath1,
              distanceSettings = distanceSettings,tc_transf= tc_transf, C= C, numSampleSubjects= numSampleSubjects)
 
     if M_e_optim is not None:
         neuronalModel.setParms({'M_e': M_e_optim})
     else:
-        fitt(x='M_e', fic=fic, J_fileNames=J_fileNames, Xs = Xs,
+        fitt2(x='M_e', fic=fic, J_fileNames=J_fileNames, Xs = Xs,outFilePath= outFilePath1,
              distanceSettings=distanceSettings, tc_transf=tc_transf, C=C, numSampleSubjects=numSampleSubjects)
 
     if M_i_optim is not None:
         neuronalModel.setParms({'M_i': M_i_optim})
     else:
-        fitt(x='M_i', fic=fic, J_fileNames=J_fileNames, Xs = Xs,
+        fitt2(x='M_i', fic=fic, J_fileNames=J_fileNames, Xs = Xs,outFilePath= outFilePath1,
              distanceSettings=distanceSettings, tc_transf=tc_transf, C=C, numSampleSubjects=numSampleSubjects)
 
-def prepro_Optim_Individual(fic = None, neuronalModel = None, current_subjects = None,outFilePath = 'None', selectedTask ='REST1',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
+def prepro_Optim_Individual(fic = None, neuronalModel = None, current_subjects = None,outFilePath = 'None', selectedTask ='REST',numSampleSubjects = 10, G_optim = None, Start= 0.5, Step = 0.1, End = 1.5 + 0.001,
                    M_e_optim = None, M_i_optim = None, J_fileNames = None,
                    distanceSettings = {'FC': (FC, False), 'swFCD': (swFCD, True), 'phFCD': (phFCD, True)}):
 
