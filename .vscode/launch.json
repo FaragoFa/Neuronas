@@ -11,9 +11,39 @@
             "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
             "console": "integratedTerminal",
             "env": {
+                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}",
+                "NUMBA_CACHE_DIR": "/tmp/nn_cache"
+            },
+            "args": ["--fitting-subj", "0",
+                    "--tr", "2000",
+                    "--g", "1.01",
+                    "--tmax", "300",
+                    "--nsubj", "100",
+                    "--use-mp",
+                    "--data-path", "${workspaceFolder}/Datos/Datasets/DataHCP80", 
+                    "--nproc", "32",
+                    "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test",
+                    "--observables", "FC", "swFCD", "phFCD"]
+        },
+        {
+            "name": "G range",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
+            "console": "integratedTerminal",
+            "env": {
                 "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
             },
-            "args": ["--fitting-subj", "0", "--we", "1.01"]
+            "args": ["--fitting-subj", "0",
+                    "--g-range", "0.1", "7.0", "0.1",
+                    "--use-mp",
+                    "--tmax", "600",
+                    "--nsubj", "100",
+                    "--tr", "2000",
+                    "--nproc", "32",
+                    "--data-path", "${workspaceFolder}/Datos/Datasets/DataHCP80", 
+                    "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test",
+                    "--observables", "FC", "swFCD", "phFCD"]
         },
         {
             "name": "Empirical",
@@ -24,7 +54,28 @@
             "env": {
                 "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
             },
-            "args": ["--task", "REST", "--process-empirical", "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test", "--data-path", "${workspaceFolder}/Datos/Datasets/DataHCP80_orig", "--nproc", "32"]
+            "args": ["--process-empirical",
+                    "--tr", "2000",
+                    "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test", 
+                    "--data-path", "${workspaceFolder}/Datos/Datasets/DataHCP80", 
+                    "--nproc", "32",
+                    "--observables", "FC", "swFCD", "phFCD"]
+        },
+        {
+            "name": "srun test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
+            },
+            "args": ["--g-range", "0.1", "7.0", "0.1",
+                    "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test", 
+                    "--data-path", "${workspaceFolder}/Datos/Datasets/DataHCP80", 
+                    "--observables", "FC", "swFCD", "phFCD",
+                    "--tr", "2000",
+                ]
         }
     ]
 }
