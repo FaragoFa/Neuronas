@@ -1,2 +1,5 @@
 /Datos
 .idea
+.env
+.vscode
+Neuronas.code-workspace
