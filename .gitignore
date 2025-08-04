@@ -1,2 +1,6 @@
 /Datos
 .idea
+.env
+*code-workspace
+.vscode/settings.json
+*.pyc
