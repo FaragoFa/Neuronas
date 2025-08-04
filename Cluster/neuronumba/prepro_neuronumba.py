@@ -194,7 +194,7 @@ def prepro():
             fig, ax = plt.subplots()
             ax.plot(x, ys)
             ax.set_title(f"Distance for observable {o_name}")
-            plt.savefig(f"fig_g_optim_{o_name}.png", dpi=300)
+            plt.savefig(os.path.join(out_path, f"fig_g_optim_{o_name}.png"), dpi=300)
 
         exit(0)
 
@@ -289,11 +289,11 @@ def prepro():
             subjects = list(range(n_subj))    
             results = []
             print(f'Creating process pool with {args.nproc} workers')
-            pool = ProcessPoolExecutor(max_workers=args.nproc)
-            futures = []
-            future2subj = {}
             while len(subjects) > 0:
                 print(f"EXECUTOR --- START cycle for {len(subjects)} subjects")
+                pool = ProcessPoolExecutor(max_workers=args.nproc)
+                futures = []
+                future2subj = {}
                 for n in subjects:
                     exec_env = {
                         'verbose':True,
@@ -321,10 +321,10 @@ def prepro():
                         results.append((n, result))
                         print(f"EXECUTOR --- FINISHED subject {n}")
                     except Exception as exc:
-                        print(f"EXECUTOR --- FAIL. Restarting process for subject {n}")
-                        subjects.append(n)
-                        futures = list(filter(lambda f: future2subj[f] == n, futures))
-                        del future2subj[future] 
+                        print(f"EXECUTOR --- FAIL subject {n}. Restarting pool.")
+                        pool.shutdown(wait=False)
+                        finished = [n for n, _ in results]
+                        subjects = [n for n in subjects if n not in finished]
                         break
 
             simulated_bolds = {}
