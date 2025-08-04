@@ -1,5 +1,5 @@
 import argparse
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import copy
 import subprocess
 import sys
@@ -44,7 +44,9 @@ from global_coupling_fitting import (
     gen_arg_parser, 
     compute_g,
     simulate_single_subject,
-    process_bold_signals
+    process_bold_signals,
+    ObservableConfig,
+    create_observable_config
 )
 
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
@@ -102,6 +104,12 @@ def extend_command(command, args, params):
             else:
                 command.extend([f'--{arg_name.replace("_", "-")}', str(arg_value)])
 
+def executor_simulate_single_subject(n, exec_env, g):
+    try:
+        return n, simulate_single_subject(exec_env, g)
+    except Exception as e:
+        print(f"Error simulating subject {n}: {e}", file=sys.stderr)
+        raise
 
 def prepro():
     parser = gen_arg_parser()
@@ -119,7 +127,7 @@ def prepro():
     parser.add_argument("--subject", help="Subject to explore", type=int, required=False)
     parser.add_argument("--me-range", nargs=3, help="Parameter sweep range for Me", type=float, required=False)
     parser.add_argument("--mi-range", nargs=3, help="Parameter sweep range for Mi", type=float, required=False)
-    parser.add_argument("--task", help="Task to compute", type=str, required=False, default='REST')
+    parser.add_argument("--task", help="Task to compute", type=str, required=False)
     parser.add_argument("--data-path", type=str, help="Input path witj subjects data", required=False, default=os.path.join(dir_path, '..', '..', 'Datos', 'Datasets', 'DataHCP80'))
     parser.add_argument("--use-mp", help="Use multiprocessing for the fitting process", action=argparse.BooleanOptionalAction, default=False)
 
@@ -132,20 +140,21 @@ def prepro():
     emp_filename_pattern = os.path.join(out_path, 'fNeuro_emp_{}.mat')
 
     sc_scale = args.sc_scaling
+    
+    tr = args.tr
+
+    bpf = BandPassFilter(tr=tr, k=args.bpf[0], flp=args.bpf[1], fhi=args.bpf[2]) if args.bpf is not None else None
 
     observables = {}
     for observable_name in args.observables:
         if observable_name == 'FC':
-            observables.update({observable_name: (FC(), AveragingAccumulator(), PearsonSimilarity(), None)})
+            observables[observable_name] = create_observable_config(observable_name, PearsonSimilarity(), bpf)
         elif observable_name == 'phFCD':
-            observables.update({observable_name: (PhFCD(), ConcatenatingAccumulator(), KolmogorovSmirnovStatistic(), None)})
+            observables[observable_name] = create_observable_config(observable_name, KolmogorovSmirnovStatistic(), bpf)
         elif observable_name == 'swFCD':
-            observables.update({observable_name: (SwFCD(), ConcatenatingAccumulator(), KolmogorovSmirnovStatistic(), None)})
+            observables[observable_name] = create_observable_config(observable_name, KolmogorovSmirnovStatistic(), bpf)
         else:
-            RuntimeError(f"Observable <{observable_name}> not supported!")
-
-    tr = args.tr
-    bpf = BandPassFilter(tr=tr, k=args.bpf[0], flp=args.bpf[1], fhi=args.bpf[2])
+            raise RuntimeError(f"Observable <{observable_name}> not supported!")
 
     # Process BOLD signals from subjects obrtained with fMRI, and generate the corresponding observable
     if args.process_empirical:
@@ -158,7 +167,7 @@ def prepro():
 
             bold_signals = loadSubjectsData(fMRI_path.format(task))
 
-            processed = process_empirical_subjects(bold_signals, observables, bpf, verbose=args.verbose)
+            processed = process_empirical_subjects(bold_signals, observables, verbose=args.verbose)
             hdf.savemat(emp_filename, processed)
 
             print(f'Processed empirical subjects, n = {len(bold_signals)}')
@@ -169,13 +178,13 @@ def prepro():
     if args.post_g_optim:
         file_list = glob.glob(os.path.join(out_path, 'fitting_g_*.mat'))
         y = {}
-        for o_name, _ in observables.items():
+        for o_name in observables.keys():
             y[o_name] = []
         x = []
         for f in sorted(file_list):
             m = hdf.loadmat(f)
             g = m['g']
-            for o_name, _ in y.items():
+            for o_name in y.keys():
                 d = m[f'dist_{o_name}']
                 print(f"Distance for g={g} and observable {o_name} = {d}", flush=True)
                 y[o_name].append(d)
@@ -184,12 +193,13 @@ def prepro():
         for o_name, ys in y.items():
             fig, ax = plt.subplots()
             ax.plot(x, ys)
+            ax.set_title(f"Distance for observable {o_name}")
             plt.savefig(f"fig_g_optim_{o_name}.png", dpi=300)
 
         exit(0)
 
 
-    task = args.task
+    task = args.task if args.task else 'REST'
 
     dt = 0.1
     model = Naskar2021(g=args.g)
@@ -228,7 +238,7 @@ def prepro():
             print(f"Recomputing distances for file {f}", flush=True)
             m = hdf.loadmat(f)
             for ds in observables:
-                m[f'dist_{ds}'] = observables[ds][2].distance(m[ds], processed[ds])
+                m[f'dist_{ds}'] = observables[ds].compute_distance(m[ds], processed[ds])
 
             hdf.savemat(f, m)
             
@@ -240,22 +250,6 @@ def prepro():
 
         if os.path.exists(out_file):
             exit(0)
-
-        sc_filename = 'SC_dbs80HARDIFULL.mat'
-        sc_path = os.path.join(data_path, sc_filename)
-
-        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
-
-        print(f"Loading {sc_path}")
-        sc80 = hdf.loadmat(sc_path)['SC_dbs80FULL']
-        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
-
-        n_rois = C.shape[0]
-        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
-        speed = 1.0
-        dt = 0.1
-
-        processed = hdf.loadmat(emp_filename_pattern.format(task))
 
         print(f'Computing distance for G={args.g}', flush=True)
         compute_g({
@@ -269,7 +263,6 @@ def prepro():
             'obs_var': obs_var,
             'bold': True,
             'bold_model': BoldStephan2008().configure(),
-            'bold_bpf': bpf,
             'out_file': out_file_name_pattern.format(np.round(args.g, decimals=3)),
             'num_subjects': n_subj,
             't_max_neuronal': t_max_neuronal,
@@ -285,19 +278,21 @@ def prepro():
         Gs = np.arange(args.g_range[0], args.g_range[1], args.g_range[2])
 
         for g in Gs:
-            out_file = os.path.join(out_path, f'fitting_{args.task}_g_{g}.mat')
+            out_file = out_file_name_pattern.format(np.round(g, decimals=3))
 
             if os.path.exists(out_file):
-                exit(0)
+                print(f"File {out_file} already exists, skipping...")
+                continue    
 
             print(f'Computing distance for task {task} and G={g}', flush=True)
 
             subjects = list(range(n_subj))    
             results = []
+            print(f'Creating process pool with {args.nproc} workers')
+            pool = ProcessPoolExecutor(max_workers=args.nproc)
+            futures = []
+            future2subj = {}
             while len(subjects) > 0:
-                print(f'Creating process pool with {args.nproc} workers')
-                pool = ProcessPoolExecutor(max_workers=args.nproc)
-                futures = []
                 print(f"EXECUTOR --- START cycle for {len(subjects)} subjects")
                 for n in subjects:
                     exec_env = {
@@ -305,65 +300,45 @@ def prepro():
                         'model': copy.deepcopy(model),
                         'integrator': copy.deepcopy(integrator),
                         'weights': C,
-                        'processed': processed,
                         'tr': args.tr,
-                        'observables': copy.deepcopy(observables),
                         'obs_var': obs_var,
                         'bold': True,
                         'bold_model': BoldStephan2008().configure(),
-                        'bold_bpf': bpf,
-                        'out_file_name_pattern': out_file_name_pattern,
-                        'num_subjects': n_subj,
                         't_max_neuronal': t_max_neuronal,
                         't_warmup': t_warmup,
-                        'sampling_period': sampling_period,
-                        'force_recomputations': False
+                        'sampling_period': sampling_period
                     }
-                    futures.append((n, pool.submit(simulate_single_subject, exec_env, g)))
+                    f = pool.submit(executor_simulate_single_subject, n, exec_env, g)
+                    future2subj[f] = n
+                    futures.append(f)
 
-                while any(f.done() for _, f in futures):
-                    time.sleep(5)
+                print(f"EXECUTOR --- WAITING for {len(futures)} futures to finish")
 
                 subjects = []
-                for n, f in futures:
+                for future in as_completed(futures):
                     try:
-                        result = f.result()
+                        n, result = future.result()
                         results.append((n, result))
-                        print(f"EXECUTOR --- FINISHED process for subject {n}")
+                        print(f"EXECUTOR --- FINISHED subject {n}")
                     except Exception as exc:
-                        f.cancel()
                         print(f"EXECUTOR --- FAIL. Restarting process for subject {n}")
                         subjects.append(n)
+                        futures = list(filter(lambda f: future2subj[f] == n, futures))
+                        del future2subj[future] 
+                        break
 
             simulated_bolds = {}
             for n, r in results:
                 simulated_bolds[n] = r
             
             exec_env = {
-                        'verbose':True,
-                        'model': copy.deepcopy(model),
-                        'integrator': copy.deepcopy(integrator),
-                        'weights': C,
-                        'processed': processed,
-                        'tr': args.tr,
                         'observables': copy.deepcopy(observables),
-                        'obs_var': obs_var,
-                        'bold': True,
-                        'bold_model': BoldStephan2008().configure(),
-                        'bold_bpf': bpf,
-                        'out_file_name_pattern': out_file_name_pattern,
-                        'num_subjects': n_subj,
-                        't_max_neuronal': t_max_neuronal,
-                        't_warmup': t_warmup,
-                        'sampling_period': sampling_period,
-                        'force_recomputations': False
                     }
     
-            sim_measures = process_bold_signals(simulated_bolds, exec_env)
+            sim_measures = process_bold_signals(simulated_bolds, { 'observables': copy.deepcopy(observables)})
             sim_measures['g'] = g
             for ds in observables:
-                sim_measures[f'dist_{ds}'] = observables[ds][2].distance(sim_measures[ds], processed[ds])
-            out_file = out_file_name_pattern.format(np.round(g, decimals=3))
+                sim_measures[f'dist_{ds}'] = observables[ds].compute_distance(sim_measures[ds], processed[ds])
 
             hdf.savemat(out_file, sim_measures)
 
@@ -416,8 +391,7 @@ def prepro():
         print(f"Starting fitting process for subject {args.subject} for task {task}, {len(mes)} points for M_e and {len(mis)} points for M_i")
         fMRI = read_matlab_h5py_single(fMRI_path.format(task), args.subject)
         
-        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=True)
-        processed = process_empirical_subjects({0: fMRI}, observables, bpf, verbose=args.verbose)
+        processed = process_empirical_subjects({0: fMRI}, observables, verbose=args.verbose)
 
         for me in mes:
             for mi in mis:
@@ -443,7 +417,6 @@ def prepro():
                     'obs_var': obs_var,
                     'bold': True,
                     'bold_model': BoldStephan2008().configure(),
-                    'bold_bpf': bpf,
                     'out_file': out_file,
                     'num_subjects': n_subj,
                     't_max_neuronal': t_max_neuronal,
