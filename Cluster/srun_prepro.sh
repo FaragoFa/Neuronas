@@ -15,4 +15,4 @@ source /home/cluster/imartin/.virtualenvs/neuronas/bin/activate
 
 export PYTHONPATH=/home/cluster/imartin/WholeBrain:/home/cluster/imartin/neuronas/Neuronas:$PYTHONPATH
 
-python3 ./prepro_cluster.py --we-range 7 30.001 1
+python3 ./prepro_cluster.py --we-range 12 17.001 0.25
