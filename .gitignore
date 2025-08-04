@@ -1,5 +1,11 @@
 /Datos
 .idea
 .env
+<<<<<<< HEAD
 .vscode
 Neuronas.code-workspace
+=======
+*code-workspace
+.vscode/settings.json
+*.pyc
+>>>>>>> 10de7a4cbbb087d3ccbbfbd750094e36aabbdf0d

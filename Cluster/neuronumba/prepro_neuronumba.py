@@ -1,5 +1,6 @@
 import argparse
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import copy
 import subprocess
 import sys
 import os
@@ -14,8 +15,16 @@ import h5py
 import numpy as np
 
 from neuronumba.tools.filters import BandPassFilter
-from neuronumba.observables.measures import KolmogorovSmirnovStatistic
-from neuronumba.observables.ph_fcd import PhFCD
+from neuronumba.observables.measures import (
+    KolmogorovSmirnovStatistic, 
+    PearsonSimilarity
+)
+from neuronumba.observables import (
+    PhFCD,
+    SwFCD,
+    FC
+)
+
 from neuronumba.bold import BoldStephan2008
 from neuronumba.simulator.connectivity import Connectivity
 from neuronumba.simulator.history import HistoryNoDelays
@@ -24,13 +33,26 @@ from neuronumba.simulator.integrators.euler import EulerStochastic
 from neuronumba.simulator.models import Naskar2021
 from neuronumba.simulator.monitors import RawSubSample
 from neuronumba.simulator.simulator import Simulator
-from neuronumba.observables.accumulators import ConcatenatingAccumulator
+from neuronumba.observables.accumulators import (
+    ConcatenatingAccumulator,
+    AveragingAccumulator
+)
 from neuronumba.tools import hdf
+
+from global_coupling_fitting import (
+    process_empirical_subjects, 
+    gen_arg_parser, 
+    compute_g,
+    simulate_single_subject,
+    process_bold_signals,
+    ObservableConfig,
+    create_observable_config
+)
 
 tasks = ['EMOTION', 'GAMBLING', 'LANGUAGE', 'MOTOR', 'RELATIONAL', 'REST', 'SOCIAL', 'WM']
 
 subjects_excluded = {515, 330, 778, 140, 77, 74, 335, 591, 978, 596, 406, 729, 282, 667, 157, 224, 290, 355, 930, 742,
-                     425, 170, 299, 301, 557, 239, 240, 238, 820, 502, 185, 700}
+                     425, 170, 299, 301, 557, 239, 240, 238, 820, 502, 185, 700, 553, 433, 40}
 
 
 def read_matlab_h5py(filename, max_subjects=None):
@@ -43,7 +65,7 @@ def read_matlab_h5py(filename, max_subjects=None):
                 continue
             try:
                 dbs80ts = np.array(group['dbs80ts'])
-                all_fMRI[pos] = dbs80ts
+                all_fMRI[pos] = dbs80ts.T
             except:
                 print(f'ignoring register {subj} at {pos}')
             if max_subjects and pos >= max_subjects:
@@ -72,107 +94,72 @@ def loadSubjectsData(fMRI_path, max_subjects=None):
     fMRIs = read_matlab_h5py(fMRI_path, max_subjects)  # ignore the excluded list
     return fMRIs
 
+def extend_command(command, args, params):
+    for arg_name, arg_value in vars(args).items():
+        if arg_name in params and arg_value is not None:
+            if isinstance(arg_value, list):
+                command.append(f'--{arg_name}')
+                for value in arg_value:
+                    command.append(str(value))
+            else:
+                command.extend([f'--{arg_name.replace("_", "-")}', str(arg_value)])
 
-def compute_simulated(signal, period):
-    b = BoldStephan2008()
-    bold = b.compute_bold(signal, period)
-    bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0)
-    bold_filt = bpf.filter(bold)
-    ph_fcd = PhFCD()
-    simulated = ph_fcd.from_fmri(bold_filt)
-    return simulated
-
-
-def process_empirical_subjects(bold_signals, observable, accumulator, bpf):
-    # Process the BOLD signals
-    # BOLDSignals is a dictionary of subjects {subjectName: subjectBOLDSignal}
-    # observablesToUse is a dictionary of {observableName: observablePythonModule}
-    ds = 'phFCD'
-    num_subjects = len(bold_signals)
-    # get the first key to retrieve the value of N = number of areas
-    n_rois = bold_signals[next(iter(bold_signals))].shape[1]  
-
-    # First, let's create a data structure for the observables operations...
-    measureValues = {}
-    measureValues[ds] = accumulator.init(num_subjects, n_rois)
-
-    # Loop over subjects
-    for pos, s in enumerate(bold_signals):
-        print(
-            '   Processing signal {}/{} Subject: {} ({}x{})'.format(pos + 1, num_subjects, s, bold_signals[s].shape[0],
-                                                                    bold_signals[s].shape[1]), flush=True)
-        signal = bold_signals[s]  # LR_version_symm(tc[s])
-
-        signal_filt = bpf.filter(signal)
-        procSignal = observable.from_fmri(signal_filt)
-        measureValues[ds] = accumulator.accumulate(measureValues[ds], pos, procSignal[ds])
-
-    measureValues[ds] = accumulator.postprocess(measureValues[ds])
-
-    return measureValues
-
-def compute_subject(exec_env):
-    C = exec_env['C']
-    lengths = exec_env['lengths']
-    speed = exec_env['speed']
-    dt = exec_env['dt']
-    n = exec_env['n']
-    we = exec_env['we']
-    num_sim_subjects = exec_env['num_sim_subjects']
-
-    history = HistoryNoDelays()
-    con = Connectivity(weights=C, lengths=lengths, speed=speed)
-    m = Naskar2021(weights=C, g=we).configure()
-    integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 1e-3, 0])
-    # integ = EulerDeterministic(dt=dt)
-    monitor = RawSubSample(period=1.0, monitor_vars=m.get_var_info(['S_e']))
-    s = Simulator(connectivity=con, model=m, history=history, integrator=integ, monitors=[monitor]).configure()
-    start_time = time.perf_counter()
-    s.run(0, 440000)
-
-    signal = monitor.data('S_e')
-    simulated = compute_simulated(signal, monitor.period)
-    t_dist = time.perf_counter() - start_time
-    print(f"Simulated subject {n+1}/{num_sim_subjects} in {t_dist} seconds", flush=True)
-
-    return simulated
-
+def executor_simulate_single_subject(n, exec_env, g):
+    try:
+        return n, simulate_single_subject(exec_env, g)
+    except Exception as e:
+        print(f"Error simulating subject {n}: {e}", file=sys.stderr)
+        raise
 
 def prepro():
-    parser = argparse.ArgumentParser()
+    parser = gen_arg_parser()
+
+    dir_path = os.path.dirname(os.path.abspath(__file__))
 
     parser.add_argument("--fitting-subj", type=int, help="Start the fitting process for an specific subject")
     parser.add_argument("--fitting", help="Start the fitting process", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--recompute-dist", help="Start the fitting process", action=argparse.BooleanOptionalAction)
     parser.add_argument("--multi", help="Use multiple fNeuro_emp files", action=argparse.BooleanOptionalAction)
     parser.add_argument("--max-emp_subjects", help="Maximum empirical subjects to use", type=int, required=False)
     parser.add_argument("--post-g-optim", help="Post process G optimization", action=argparse.BooleanOptionalAction)
     parser.add_argument("--post-fitting", help="Post process G optimization", action=argparse.BooleanOptionalAction)
     parser.add_argument("--process-empirical", help="Process empirical subjects", action=argparse.BooleanOptionalAction)
-    parser.add_argument("--we", help="G value to explore", type=float, required=False)
-    parser.add_argument("--we-range", nargs=3, help="Parameter sweep range for G", type=float, required=False)
     parser.add_argument("--subject", help="Subject to explore", type=int, required=False)
     parser.add_argument("--me-range", nargs=3, help="Parameter sweep range for Me", type=float, required=False)
     parser.add_argument("--mi-range", nargs=3, help="Parameter sweep range for Mi", type=float, required=False)
-    parser.add_argument("--task", help="Task to compute", type=str, required=False, default='REST')
-    parser.add_argument("--nproc", type=int, default=32, help="Number of processes to use for parallel processing")
-    parser.add_argument("--out-path", type=str, default=None, help="Output path for results", required=True)
-    parser.add_argument("--sc-scale", type=float, default=0.2, help="Scale for the structural connectivity matrix")
-    parser.add_argument("--use-mp", help="Use multiprocessing for the fitting process", action=argparse.BooleanOptionalAction)
+    parser.add_argument("--task", help="Task to compute", type=str, required=False)
+    parser.add_argument("--data-path", type=str, help="Input path witj subjects data", required=False, default=os.path.join(dir_path, '..', '..', 'Datos', 'Datasets', 'DataHCP80'))
+    parser.add_argument("--use-mp", help="Use multiprocessing for the fitting process", action=argparse.BooleanOptionalAction, default=False)
 
     args = parser.parse_args()
 
-    dir_path = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(dir_path, '..', '..', 'Datos', 'Datasets', 'DataHCP80')
+    data_path = args.data_path
     out_path = args.out_path
     os.makedirs(out_path, exist_ok=True)
     fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
     emp_filename_pattern = os.path.join(out_path, 'fNeuro_emp_{}.mat')
 
-    sc_scale = args.sc_scale
+    sc_scale = args.sc_scaling
+    
+    tr = args.tr
+
+    bpf = BandPassFilter(tr=tr, k=args.bpf[0], flp=args.bpf[1], fhi=args.bpf[2]) if args.bpf is not None else None
+
+    observables = {}
+    for observable_name in args.observables:
+        if observable_name == 'FC':
+            observables[observable_name] = create_observable_config(observable_name, PearsonSimilarity(), bpf)
+        elif observable_name == 'phFCD':
+            observables[observable_name] = create_observable_config(observable_name, KolmogorovSmirnovStatistic(), bpf)
+        elif observable_name == 'swFCD':
+            observables[observable_name] = create_observable_config(observable_name, KolmogorovSmirnovStatistic(), bpf)
+        else:
+            raise RuntimeError(f"Observable <{observable_name}> not supported!")
 
     # Process BOLD signals from subjects obrtained with fMRI, and generate the corresponding observable
     if args.process_empirical:
-        for task in tasks:
+        tasks_to_process = [args.task] if args.task else tasks
+        for task in tasks_to_process:
             emp_filename = emp_filename_pattern.format(task)
             if os.path.exists(emp_filename):
                 print(f"File <{emp_filename}> already exists!")
@@ -180,8 +167,7 @@ def prepro():
 
             bold_signals = loadSubjectsData(fMRI_path.format(task))
 
-            bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=True)
-            processed = process_empirical_subjects(bold_signals, PhFCD(), ConcatenatingAccumulator(), bpf)
+            processed = process_empirical_subjects(bold_signals, observables, verbose=args.verbose)
             hdf.savemat(emp_filename, processed)
 
             print(f'Processed empirical subjects, n = {len(bold_signals)}')
@@ -191,148 +177,176 @@ def prepro():
     # Show distances for all G files generated
     if args.post_g_optim:
         file_list = glob.glob(os.path.join(out_path, 'fitting_g_*.mat'))
+        y = {}
+        for o_name in observables.keys():
+            y[o_name] = []
         x = []
-        y = []
         for f in sorted(file_list):
             m = hdf.loadmat(f)
-            we = m['we']
-            d = m['dist']
-            print(f"Distance for we={we} = {d}", flush=True)
-            x.append(we)
-            y.append(d)
+            g = m['g']
+            for o_name in y.keys():
+                d = m[f'dist_{o_name}']
+                print(f"Distance for g={g} and observable {o_name} = {d}", flush=True)
+                y[o_name].append(d)
+            x.append(g)
 
-        fig, ax = plt.subplots()
-        ax.plot(x, y)
-        plt.savefig("fig_g_optim.png", dpi=300)
+        for o_name, ys in y.items():
+            fig, ax = plt.subplots()
+            ax.plot(x, ys)
+            ax.set_title(f"Distance for observable {o_name}")
+            plt.savefig(os.path.join(out_path, f"fig_g_optim_{o_name}.png"), dpi=300)
 
+        exit(0)
+
+
+    task = args.task if args.task else 'REST'
+
+    dt = 0.1
+    model = Naskar2021(g=args.g)
+    integrator = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 1e-3, 0])
+    obs_var = 're'
+    out_file_path = args.out_path
+    out_file_name_pattern = os.path.join(out_file_path, f'fitting_g_{task}_{{}}.mat')
+    # Compute the simulation length according to input data
+    t_max = 60 if args.tmax is None else args.tmax
+    # Compute simulation time in milliseconds
+    t_max_neuronal = t_max * 1000.0
+    t_warmup = 0.0
+    n_subj = args.nsubj if args.nsubj is not None else 100
+    sampling_period = 1.0
+
+    sc_filename = 'SC_dbs80HARDIFULL.mat'
+    sc_path = os.path.join(data_path, sc_filename)
+
+    fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
+
+    print(f"Loading {sc_path}")
+    sc80 = hdf.loadmat(sc_path)['SC_dbs80FULL']
+    C = sc80 / np.max(sc80) * sc_scale  # Normalization...
+
+    n_rois = C.shape[0]
+    lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
+    speed = 1.0
+    dt = 0.1
+
+    print(f"Loading empirical data for task {task}", flush=True)
+    processed = hdf.loadmat(emp_filename_pattern.format(task))
+
+    if args.recompute_dist:
+        file_list = glob.glob(os.path.join(out_path, 'fitting_g_*.mat'))
+        for f in sorted(file_list):
+            print(f"Recomputing distances for file {f}", flush=True)
+            m = hdf.loadmat(f)
+            for ds in observables:
+                m[f'dist_{ds}'] = observables[ds].compute_distance(m[ds], processed[ds])
+
+            hdf.savemat(f, m)
+            
         exit(0)
 
     # Compute distance for a specific G value, using the cluster with slurm
-    if args.we and not args.use_mp:
-        out_file = os.path.join(out_path, f'fitting_g_{args.we}.mat')
+    if args.g and not args.use_mp:
+        out_file = os.path.join(out_path, f'fitting_g_{args.g}.mat')
 
         if os.path.exists(out_file):
             exit(0)
 
-        sc_filename = 'SC_dbs80HARDIFULL.mat'
-        sc_path = os.path.join(data_path, sc_filename)
-
-        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
-
-        print(f"Loading {sc_path}")
-        sc80 = hdf.loadmat(sc_path)['SC_dbs80FULL']
-        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
-
-        n_rois = C.shape[0]
-        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
-        speed = 1.0
-        dt = 0.1
-
-        processed = hdf.loadmat(emp_filename_pattern.format('REST'))['phFCD']
-
-        accumulator = ConcatenatingAccumulator()
-        measure_values = accumulator.init(np.r_[0], n_rois)
-        num_sim_subjects = 100
-
-        print(f'Computing distance for G={args.we}', flush=True)
-        for n in range(num_sim_subjects):
-            history = HistoryNoDelays(weights=C)
-            con = Connectivity(weights=C, lengths=lengths, speed=speed)
-            m = Naskar2021(g=args.we)
-            integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 1e-3, 0])
-            # integ = EulerDeterministic(dt=dt)
-            monitor = RawSubSample(period=1.0, state_vars=m.get_state_sub(), obs_vars=m.get_observed_sub(['re']))
-            s = Simulator(connectivity=con, model=m, history=history, integrator=integ, monitors=[monitor])
-            s.configure()
-            start_time = time.perf_counter()
-            s.run(0, 440000)
-
-            signal = monitor.data('re')
-            simulated = compute_simulated(signal, monitor.period)
-            measure_values = accumulator.accumulate(measure_values, n, simulated['phFCD'])
-            t_dist = time.perf_counter() - start_time
-            print(f"Simulated subject {n+1}/{num_sim_subjects} in {t_dist} seconds", flush=True)
-
-        measure = KolmogorovSmirnovStatistic()
-        dist = measure.distance(processed, measure_values)
-        hdf.savemat(out_file, {'phFCD': measure_values, 'dist': dist})
+        print(f'Computing distance for G={args.g}', flush=True)
+        compute_g({
+            'verbose':True,
+            'model': copy.deepcopy(model),
+            'integrator': copy.deepcopy(integrator),
+            'weights': C,
+            'processed': processed,
+            'tr': args.tr,
+            'observables': copy.deepcopy(observables),
+            'obs_var': obs_var,
+            'bold': True,
+            'bold_model': BoldStephan2008().configure(),
+            'out_file': out_file_name_pattern.format(np.round(args.g, decimals=3)),
+            'num_subjects': n_subj,
+            't_max_neuronal': t_max_neuronal,
+            't_warmup': t_warmup,
+            'sampling_period': sampling_period,
+            'force_recomputations': False,
+        }, args.g)
         exit(0)
 
     # Compute distance for a specific G value and a given task, NOT USING SLURM, but multiprocessing
-    if args.we and args.use_mp:
-        out_file = os.path.join(out_path, f'fitting_{args.task}_g_{args.we}.mat')
+    if args.g_range and args.use_mp:
 
-        if os.path.exists(out_file):
-            exit(0)
+        Gs = np.arange(args.g_range[0], args.g_range[1], args.g_range[2])
 
-        sc_filename = 'SC_dbs80HARDIFULL.mat'
-        sc_path = os.path.join(data_path, sc_filename)
+        for g in Gs:
+            out_file = out_file_name_pattern.format(np.round(g, decimals=3))
 
-        fMRI_path = os.path.join(data_path, 'hcp1003_{}_LR_dbs80.mat')
+            if os.path.exists(out_file):
+                print(f"File {out_file} already exists, skipping...")
+                continue    
 
-        print(f"Loading {sc_path}")
-        sc80 = hdf.loadmat(sc_path)['SC_dbs80FULL']
-        C = sc80 / np.max(sc80) * sc_scale  # Normalization...
+            print(f'Computing distance for task {task} and G={g}', flush=True)
 
-        n_rois = C.shape[0]
-        lengths = np.random.rand(n_rois, n_rois) * 10.0 + 1.0
-        speed = 1.0
-        dt = 0.1
-
-        processed = hdf.loadmat(emp_filename_pattern.format(args.task))['phFCD']
-
-        accumulator = ConcatenatingAccumulator()
-        measure_values = accumulator.init(np.r_[0], n_rois)
-        num_sim_subjects = 100
-
-        print(f'Computing distance for task {args.task} and G={args.we}', flush=True)
-
-        subjects = list(range(num_sim_subjects))    
-        results = []
-        while len(subjects) > 0:
+            subjects = list(range(n_subj))    
+            results = []
             print(f'Creating process pool with {args.nproc} workers')
-            pool = ProcessPoolExecutor(max_workers=args.nproc)
-            futures = []
-            print(f"EXECUTOR --- START cycle for {len(subjects)} subjects")
-            for n in subjects:
-                exec_env = {
-                    'n': n,
-                    'we': args.we,
-                    'C': C,
-                    'lengths': lengths,
-                    'speed': speed,
-                    'dt': dt,
-                    'num_sim_subjects': num_sim_subjects,
-                }
-                futures.append((n, pool.submit(compute_subject, exec_env)))
+            while len(subjects) > 0:
+                print(f"EXECUTOR --- START cycle for {len(subjects)} subjects")
+                pool = ProcessPoolExecutor(max_workers=args.nproc)
+                futures = []
+                future2subj = {}
+                for n in subjects:
+                    exec_env = {
+                        'verbose':True,
+                        'model': copy.deepcopy(model),
+                        'integrator': copy.deepcopy(integrator),
+                        'weights': C,
+                        'tr': args.tr,
+                        'obs_var': obs_var,
+                        'bold': True,
+                        'bold_model': BoldStephan2008().configure(),
+                        't_max_neuronal': t_max_neuronal,
+                        't_warmup': t_warmup,
+                        'sampling_period': sampling_period
+                    }
+                    f = pool.submit(executor_simulate_single_subject, n, exec_env, g)
+                    future2subj[f] = n
+                    futures.append(f)
 
-            while any(f.done() for _, f in futures):
-                time.sleep(5)
+                print(f"EXECUTOR --- WAITING for {len(futures)} futures to finish")
 
-            subjects = []
-            for n, f in futures:
-                try:
-                    result = f.result()
-                    results.append((n, result))
-                    print(f"EXECUTOR --- FINISHED process for subject {n}")
-                except Exception as exc:
-                    f.cancel()
-                    print(f"EXECUTOR --- FAIL. Restarting process for subject {n}")
-                    subjects.append(n)
+                subjects = []
+                for future in as_completed(futures):
+                    try:
+                        n, result = future.result()
+                        results.append((n, result))
+                        print(f"EXECUTOR --- FINISHED subject {n}")
+                    except Exception as exc:
+                        print(f"EXECUTOR --- FAIL subject {n}. Restarting pool.")
+                        pool.shutdown(wait=False)
+                        finished = [n for n, _ in results]
+                        subjects = [n for n in subjects if n not in finished]
+                        break
 
+            simulated_bolds = {}
+            for n, r in results:
+                simulated_bolds[n] = r
+            
+            exec_env = {
+                        'observables': copy.deepcopy(observables),
+                    }
+    
+            sim_measures = process_bold_signals(simulated_bolds, { 'observables': copy.deepcopy(observables)})
+            sim_measures['g'] = g
+            for ds in observables:
+                sim_measures[f'dist_{ds}'] = observables[ds].compute_distance(sim_measures[ds], processed[ds])
 
-        for n, r in results:
-            measure_values = accumulator.accumulate(measure_values, n, r['phFCD'])
+            hdf.savemat(out_file, sim_measures)
 
-        measure = KolmogorovSmirnovStatistic()
-        dist = measure.distance(processed, measure_values)
-        print(f"Distance for g={args.we} = {dist}")
-        hdf.savemat(out_file, {'phFCD': measure_values, 'dist': dist, 'we': args.we})
-        exit(0)
+        exit(0)    
 
     # Sweep for G values with the cluster using slurm
-    if args.we_range:
-        WEs = np.arange(args.we_range[0], args.we_range[1], args.we_range[2])
+    if args.g_range:
+        WEs = np.arange(args.g_range[0], args.g_range[1], args.g_range[2])
 
         srun = ['srun', '-n', '1', '-N', '1', '-c', '1', '--time=9-00']
         # srun = ['srun', '-n1', '--exclusive']
@@ -341,9 +355,10 @@ def prepro():
 
         print('Starting srun sweep', flush=True)
         workers = []
-        for we in WEs:
+        for g in WEs:
             command = [*srun, *script]
-            command.extend(['--we', f'{we:.2f}', '--task', args.task])
+            command.extend(['--g', f'{g:.2f}'])
+            extend_command(command, args, ['task', 'data_path', 'out_path', 'sc_scaling', 'tr', 'nsubj', 'tmax', 'observables', 'bpf'])
             workers.append(subprocess.Popen(command))
             print(f"Executing: {command}", flush=True)
 
@@ -353,7 +368,7 @@ def prepro():
         print(exit_codes)
         exit(0)
 
-    # Perfomr the M_e/M_i fitting for a specific subject and for a task
+    # Perform the M_e/M_i fitting for a specific subject and for a task
     if args.subject is not None:
         optim_g = 2.05 # This is the G value that was optimized for the Naskar2021 model
         out_path = os.path.join(out_path, f'subj_{args.subject}')
@@ -373,13 +388,10 @@ def prepro():
         mes = np.arange(args.me_range[0], args.me_range[1], args.me_range[2])
         mis = np.arange(args.mi_range[0], args.mi_range[1], args.mi_range[2])
 
-        task = args.task
         print(f"Starting fitting process for subject {args.subject} for task {task}, {len(mes)} points for M_e and {len(mis)} points for M_i")
         fMRI = read_matlab_h5py_single(fMRI_path.format(task), args.subject)
         
-        bpf = BandPassFilter(k=2, flp=0.01, fhi=0.1, tr=2.0, apply_detrend=True, apply_demean=True)
-        processed = process_empirical_subjects({0: fMRI}, PhFCD(), ConcatenatingAccumulator(), bpf)
-
+        processed = process_empirical_subjects({0: fMRI}, observables, verbose=args.verbose)
 
         for me in mes:
             for mi in mis:
@@ -390,33 +402,30 @@ def prepro():
                     print(f"File already exists for {task}_{np.round(me, decimals=3)}_{np.round(mi, decimals=3)}")
                     continue
 
-                accumulator = ConcatenatingAccumulator()
-                measure_values = accumulator.init(np.r_[0], n_rois)
-                num_sim_subjects = 10
+                m = copy.deepcopy(model)
+                m.M_e = me
+                m.M_i = mi  
 
+                compute_g({
+                    'verbose':True,
+                    'model': m,
+                    'integrator': copy.deepcopy(integrator),
+                    'weights': C,
+                    'processed': processed,
+                    'tr': args.tr,
+                    'observables': copy.deepcopy(observables),
+                    'obs_var': obs_var,
+                    'bold': True,
+                    'bold_model': BoldStephan2008().configure(),
+                    'out_file': out_file,
+                    'num_subjects': n_subj,
+                    't_max_neuronal': t_max_neuronal,
+                    't_warmup': t_warmup,
+                    'sampling_period': sampling_period,
+                    'force_recomputations': False,
+                }, optim_g)
 
-                print(f'Computing distance for subject {args.subject} with M_e={me} M_i={mi}', flush=True)
-                for n in range(num_sim_subjects):
-                    history = HistoryNoDelays()
-                    con = Connectivity(weights=C, lengths=lengths, speed=speed)
-                    m = Naskar2021(g=optim_g, M_e=me, M_i=mi)
-                    integ = EulerStochastic(dt=dt, sigmas=np.r_[1e-3, 1e-3, 0])
-                    monitor = RawSubSample(period=1.0, state_vars=m.get_state_sub(), obs_vars=m.get_observed_sub(['re']))
-                    s = Simulator(connectivity=con, model=m, history=history, integrator=integ, monitors=[monitor])
-                    s.configure()
-                    start_time = time.perf_counter()
-                    s.run(0, 440000)
-
-                    signal = monitor.data('re')
-                    simulated = compute_simulated(signal, monitor.period)
-                    measure_values = accumulator.accumulate(measure_values, n, simulated['phFCD'])
-                    print(f"For pacient {args.subject}, finished simulation of subject {n+1}/{num_sim_subjects} in {task}_{np.round(me, decimals=3)}_{np.round(mi, decimals=3)}", flush=True)
-
-                measure = KolmogorovSmirnovStatistic()
-                dist = measure.distance(processed['phFCD'], measure_values)
-                hdf.savemat(out_file, {'phFCD': measure_values, 'dist': dist, 'me': me, 'mi': mi, 'task': task})
                 gc.collect()
-        
                 print(f"Time for subject {args.subject}, point {fitting_suffix} = {time.perf_counter() - start_time}")
         
         exit(0)
@@ -443,6 +452,7 @@ def prepro():
                         command.extend(['--task', task])
                         command.extend(['--me-range', f'{me}', f'{me+0.001}', '0.1'])
                         command.extend(['--mi-range', f'{mi}', f'{mi+0.001}', '0.1'])
+                        extend_command(command, args, ['data_path', 'out_path', 'sc_scaling', 'tr', 'nsubj', 'tmax', 'observables', 'bpf'])
                         workers.append(subprocess.Popen(command))
                         print(f"Executing: {command}", flush=True)
                         while len(workers) >= max_proc:
@@ -482,6 +492,7 @@ def prepro():
                     command.extend(['--task', task])
                     command.extend(['--me-range', f'{me}', f'{me+0.001}', '0.1'])
                     command.extend(['--mi-range', f'{mi}', f'{mi+0.001}', '0.1'])
+                    extend_command(command, args, ['data_path', 'out_path', 'sc_scaling', 'tr', 'nsubj', 'tmax', 'observables', 'bpf'])
                     workers.append(subprocess.Popen(command))
                     print(f"Executing: {command}", flush=True)
                     while len(workers) >= max_proc:

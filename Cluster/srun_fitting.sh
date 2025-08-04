@@ -1,7 +1,7 @@
 #!/bin/bash -x
 
 #SBATCH --nodes=6
-#SBATCH --ntasks-per-node=16
+#SBATCH --ntasks-per-node=32
 #SBATCH --cpus-per-task=1
 #SBATCH --output=f-out.%j
 #SBATCH --error=f-err.%j
