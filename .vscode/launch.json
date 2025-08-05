@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
             "console": "integratedTerminal",
             "env": {
-                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}",
+                "PYTHONPATH": "/home/cluster/facundo/neuronumba/src:${env:PYTHONPATH}",
                 "NUMBA_CACHE_DIR": "/tmp/nn_cache"
             },
             "args": ["--fitting-subj", "0",
@@ -32,7 +32,7 @@
             "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
             "console": "integratedTerminal",
             "env": {
-                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
+                "PYTHONPATH": "/home/cluster/facundo/neuronumba/src:${env:PYTHONPATH}"
             },
             "args": ["--fitting-subj", "0",
                     "--g-range", "0.1", "7.0", "0.1",
@@ -52,7 +52,7 @@
             "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
             "console": "integratedTerminal",
             "env": {
-                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
+                "PYTHONPATH": "/home/cluster/facundo/neuronumba/src:${env:PYTHONPATH}"
             },
             "args": ["--process-empirical",
                     "--tr", "2000",
@@ -68,7 +68,7 @@
             "program": "${workspaceFolder}/Cluster/neuronumba/prepro_neuronumba.py",
             "console": "integratedTerminal",
             "env": {
-                "PYTHONPATH": "/home/cluster/imartin/neuronumba/src:${env:PYTHONPATH}"
+                "PYTHONPATH": "/home/cluster/facundo/neuronumba/src:${env:PYTHONPATH}"
             },
             "args": ["--g-range", "0.1", "7.0", "0.1",
                     "--out-path", "${workspaceFolder}/Datos/Results/Results_cluster/test", 
